@@ -6,6 +6,8 @@ import api from '../../api/axios';
 import { ENDPOINTS } from '../../constants/api';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/colors';
 import { useLanguage } from '../../store/LanguageContext';
+import { useNetwork } from '../../store/NetworkContext';
+import { getCachedSchemes } from '../../db/helpers';
 
 const CATEGORIES = ['subsidy', 'insurance', 'training', 'equipment', 'welfare', 'financial'];
 
@@ -13,6 +15,7 @@ const emptyForm = () => ({ title: '', titleTamil: '', description: '', descripti
 
 export default function SchemePublishScreen({ navigation }) {
   const { t, lang } = useLanguage();
+  const { isConnected } = useNetwork();
   const [schemes, setSchemes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -23,12 +26,10 @@ export default function SchemePublishScreen({ navigation }) {
 
   const load = useCallback(async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
-    try {
-      const res = await api.get(ENDPOINTS.SCHEMES, { params: { all: 'true', limit: 100 } });
-      setSchemes(res.data.data || []);
-    } catch (e) { console.warn(e.message); }
-    finally { setLoading(false); setRefreshing(false); }
-  }, []);
+    setSchemes(getCachedSchemes());
+    setLoading(false);
+    setRefreshing(false);
+  }, [isConnected]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -37,6 +38,10 @@ export default function SchemePublishScreen({ navigation }) {
 
   const handleSave = async () => {
     if (!form.title || !form.description) { Alert.alert(t('common.required') || 'Required', lang === 'ta' ? 'தலைப்பு மற்றும் விளக்கம் தேவை' : 'Title and description are required'); return; }
+    if (!isConnected) {
+      Alert.alert(t('common.error') || 'Offline', lang === 'ta' ? 'இணைய இணைப்பு தேவை' : 'An internet connection is required to publish a scheme.');
+      return;
+    }
     setSaving(true);
     try {
       if (editScheme) await api.put(ENDPOINTS.SCHEME_BY_ID(editScheme._id), form);
@@ -48,6 +53,10 @@ export default function SchemePublishScreen({ navigation }) {
   };
 
   const toggleActive = async (s) => {
+    if (!isConnected) {
+      Alert.alert(t('common.error') || 'Offline', lang === 'ta' ? 'இணைய இணைப்பு தேவை' : 'An internet connection is required to update a scheme.');
+      return;
+    }
     try { await api.put(ENDPOINTS.SCHEME_BY_ID(s._id), { isActive: !s.isActive }); load(); }
     catch (e) { Alert.alert(t('common.error') || 'Error', lang === 'ta' ? 'புதுப்பித்தல் தோல்வியுற்றது' : 'Update failed'); }
   };
@@ -94,7 +103,7 @@ export default function SchemePublishScreen({ navigation }) {
         <FlatList
           data={schemes}
           renderItem={renderScheme}
-          keyExtractor={i => i._id}
+          keyExtractor={i => i._id || i.server_id || String(i.id)}
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(true); }} tintColor={COLORS.primary} />}
           ListEmptyComponent={<View style={styles.empty}><Ionicons name="document-outline" size={48} color={COLORS.textMuted} /><Text style={styles.emptyText}>{lang === 'ta' ? 'திட்டங்கள் எதுவும் இல்லை' : 'No schemes yet'}</Text></View>}

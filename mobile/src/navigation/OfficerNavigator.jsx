@@ -1,6 +1,6 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createStackNavigator } from '@react-navigation/stack';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants/colors';
 import { useLanguage } from '../store/LanguageContext';
@@ -16,10 +16,12 @@ import PriceManageScreen from '../screens/officer/PriceManageScreen';
 import BroadcastScreen from '../screens/officer/BroadcastScreen';
 import AnalyticsScreen from '../screens/officer/AnalyticsScreen';
 import CatchMonitorScreen from '../screens/officer/CatchMonitorScreen';
+import FishingZonesScreen from '../screens/officer/FishingZonesScreen';
+import MapViewScreen from '../screens/officer/MapViewScreen';
 import ProfileScreen from '../screens/fisherman/ProfileScreen';
 
 const Tab = createBottomTabNavigator();
-const Stack = createStackNavigator();
+const Stack = createNativeStackNavigator();
 
 function DashboardStack() {
   return (
@@ -28,6 +30,8 @@ function DashboardStack() {
       <Stack.Screen name="FishermenList" component={FishermenListScreen} />
       <Stack.Screen name="BoatMonitor" component={BoatMonitorScreen} />
       <Stack.Screen name="CatchMonitor" component={CatchMonitorScreen} />
+      <Stack.Screen name="FishingZones" component={FishingZonesScreen} />
+      <Stack.Screen name="MapView" component={MapViewScreen} />
       <Stack.Screen name="Analytics" component={AnalyticsScreen} />
     </Stack.Navigator>
   );

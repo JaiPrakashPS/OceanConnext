@@ -12,10 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import axios from 'axios';
-
-// ─── API Base (adjust to your env) ───────────────────────────────────────────
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000/api';
+import { resetLocalPassword } from '../../db/helpers';
 
 // ─── Colour tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -43,6 +40,8 @@ const STATE = {
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function ForgotPasswordScreen({ navigation }) {
   const [email,     setEmail]     = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [uiState,   setUiState]   = useState(STATE.IDLE);
   const [error,     setError]     = useState('');
 
@@ -57,6 +56,14 @@ export default function ForgotPasswordScreen({ navigation }) {
       setError('Please enter a valid email address.');
       return false;
     }
+    if (newPassword.length < 6) {
+      setError('New password must be at least 6 characters.');
+      return false;
+    }
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match.');
+      return false;
+    }
     return true;
   };
 
@@ -67,9 +74,9 @@ export default function ForgotPasswordScreen({ navigation }) {
 
     try {
       setUiState(STATE.LOADING);
-      await axios.post(`${API_BASE}/auth/forgot-password`, {
-        email: email.trim().toLowerCase(),
-      });
+      if (!resetLocalPassword(email, newPassword)) {
+        throw new Error('No local account was found for this email.');
+      }
       setUiState(STATE.SUCCESS);
     } catch (err) {
       const msg =
@@ -116,7 +123,7 @@ export default function ForgotPasswordScreen({ navigation }) {
 
             <Text style={styles.successTitle}>Check Your Email</Text>
             <Text style={styles.successSubtitle}>
-              We've sent password reset instructions to:
+              Your password was reset on this device for:
             </Text>
             <View style={styles.emailPill}>
               <Ionicons name="mail" size={16} color={C.primary} />
@@ -124,9 +131,8 @@ export default function ForgotPasswordScreen({ navigation }) {
             </View>
 
             <View style={styles.successInfo}>
-              <InfoRow icon="time-outline"   text="The link expires in 30 minutes." />
-              <InfoRow icon="folder-outline" text="Check your spam/junk folder if not received." />
-              <InfoRow icon="refresh-outline" text="Resend if you don't see it after a few minutes." />
+              <InfoRow icon="phone-portrait-outline" text="Your account data is stored locally in this app." />
+              <InfoRow icon="lock-closed-outline" text="Use your new password the next time you sign in." />
             </View>
 
             {/* Back to login */}
@@ -139,14 +145,6 @@ export default function ForgotPasswordScreen({ navigation }) {
               <Text style={styles.backToLoginBtnText}>Back to Sign In</Text>
             </TouchableOpacity>
 
-            {/* Resend */}
-            <TouchableOpacity
-              style={styles.resendBtn}
-              onPress={handleRetry}
-            >
-              <Ionicons name="refresh-outline" size={16} color={C.textMuted} />
-              <Text style={styles.resendBtnText}> Resend Email</Text>
-            </TouchableOpacity>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -241,9 +239,42 @@ export default function ForgotPasswordScreen({ navigation }) {
             <View style={styles.helpRow}>
               <Ionicons name="information-circle-outline" size={15} color={C.textMuted} />
               <Text style={styles.helpText}>
-                {'  '}We'll send a secure link to reset your password.{'\n'}
-                {'  '}The link will expire after 30 minutes.
+                {'  '}Your password will be updated locally on this device.{'\n'}
+                {'  '}No internet connection is required.
               </Text>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>New Password</Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons name="lock-closed-outline" size={20} color={C.textMuted} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter a new password"
+                  placeholderTextColor={C.textMuted}
+                  value={newPassword}
+                  onChangeText={(v) => { setNewPassword(v); setError(''); }}
+                  secureTextEntry
+                  editable={!isLoading}
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Confirm New Password</Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons name="lock-closed-outline" size={20} color={C.textMuted} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Re-enter the new password"
+                  placeholderTextColor={C.textMuted}
+                  value={confirmPassword}
+                  onChangeText={(v) => { setConfirmPassword(v); setError(''); }}
+                  secureTextEntry
+                  editable={!isLoading}
+                  onSubmitEditing={handleSubmit}
+                />
+              </View>
             </View>
 
             {/* Submit */}
@@ -257,8 +288,8 @@ export default function ForgotPasswordScreen({ navigation }) {
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <>
-                  <Ionicons name="send-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
-                  <Text style={styles.submitBtnText}>Send Reset Link</Text>
+                  <Ionicons name="lock-open-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
+                  <Text style={styles.submitBtnText}>Reset Password</Text>
                 </>
               )}
             </TouchableOpacity>

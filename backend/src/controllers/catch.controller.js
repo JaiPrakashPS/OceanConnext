@@ -5,17 +5,23 @@ const { paginate, paginateMeta } = require('../utils/paginate');
 // Map offline SQLite field names to MongoDB field names
 const mapOfflineRecord = (record) => ({
   species: record.species || record.fish_species || 'Unknown',
-  speciesTamil: record.species_tamil || null,
+  speciesTamil: record.speciesTamil || record.species_tamil || null,
   quantity: parseFloat(record.quantity) || 0,
   weight: parseFloat(record.weight) || 0,
-  weightUnit: record.weight_unit || 'kg',
+  weightUnit: record.weightUnit || record.weight_unit || 'kg',
   earnings: parseFloat(record.earnings) || 0,
-  location: {
-    lat: parseFloat(record.catch_lat) || null,
-    lng: parseFloat(record.catch_lng) || null,
-    name: record.catch_location_name || null,
-  },
-  catchDate: record.catch_date || record.catchDate || new Date(),
+  location: record.location
+    ? {
+        lat: record.location.lat ?? null,
+        lng: record.location.lng ?? null,
+        name: record.location.name || null,
+      }
+    : {
+        lat: record.catch_lat ?? null,
+        lng: record.catch_lng ?? null,
+        name: record.catch_location_name || null,
+      },
+  catchDate: record.catchDate || record.catch_date || new Date(),
   notes: record.notes || null,
   boatId: record.boat_id || record.boatId || null,
   localId: String(record.local_id || record.localId || ''),
@@ -79,7 +85,10 @@ const syncCatches = asyncHandler(async (req, res) => {
   for (const record of records) {
     try {
       const mapped = mapOfflineRecord(record);
-      const saved = await Catch.create({ ...mapped, fishermenId: req.user._id, syncSource: 'local' });
+      const existing = mapped.localId
+        ? await Catch.findOne({ fishermenId: req.user._id, localId: mapped.localId })
+        : null;
+      const saved = existing || await Catch.create({ ...mapped, fishermenId: req.user._id, syncSource: 'local' });
       results.push({ localId: record.local_id || record.localId, serverId: saved._id, success: true });
     } catch (err) {
       results.push({ localId: record.local_id || record.localId, success: false, error: err.message });

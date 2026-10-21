@@ -6,11 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0A1628"
-    },
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -46,13 +41,16 @@
     "plugins": [
       "expo-location",
       "expo-image-picker",
-      "expo-font"
+      "expo-font",
+      "expo-splash-screen",
+      "expo-sqlite",
+      "expo-status-bar"
     ],
     "updates": {
       "enabled": false
     },
     "extra": {
-      "API_BASE_URL": "http://10.50.177.123:5000/api/v1"
+      "API_BASE_URL": "http://10.173.154.215:5000/api/v1"
     }
   }
 }

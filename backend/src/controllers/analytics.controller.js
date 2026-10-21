@@ -9,15 +9,17 @@ const getOverview = asyncHandler(async (req, res) => {
   const Catch      = require('../models/Catch');
   const SosRequest = require('../models/SosRequest');
   const Boat       = require('../models/Boat');
+  const FishingZone = require('../models/FishingZone');
   const Complaint  = require('../models/Complaint');
 
-  const [fishermen, officers, catches, sosPending, sosTotal, boats, complaintOpen] = await Promise.all([
+  const [fishermen, officers, catches, sosPending, sosTotal, boats, zones, complaintOpen] = await Promise.all([
     safeCount(User, { role: 'fisherman' }),
     safeCount(User, { role: 'officer' }),
     safeCount(Catch),
     safeCount(SosRequest, { status: 'pending' }),
     safeCount(SosRequest),
     safeCount(Boat),
+    safeCount(FishingZone, { isActive: true }),
     safeCount(Complaint, { status: { $in: ['open', 'under_review'] } }),
   ]);
 
@@ -28,6 +30,7 @@ const getOverview = asyncHandler(async (req, res) => {
       officers:   { total: officers },
       catches:    { total: catches },
       boats:      { total: boats },
+      zones:      { total: zones },
       sos:        { total: sosTotal, pending: sosPending },
       complaints: { open: complaintOpen },
     },

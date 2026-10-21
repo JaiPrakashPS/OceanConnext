@@ -7,6 +7,7 @@ const sosRequestSchema = new mongoose.Schema(
       ref: 'User',
       required: [true, 'Fisherman ID is required'],
     },
+    messageId: { type: String, unique: true, sparse: true, trim: true },
     boatId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Boat',

@@ -18,10 +18,12 @@ import api from '../../api/axios';
 import { ENDPOINTS } from '../../constants/api';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/colors';
 import { useLanguage } from '../../store/LanguageContext';
+import { useNetwork } from '../../store/NetworkContext';
+import { getPendingSOS } from '../../db/helpers';
 
 const getActionLabel = (label, lang) => {
   if (lang === 'ta') {
-    if (label === 'Acknowledge') return 'பதிலளிக்கவும்';
+    if (label === 'Start response') return 'பதிலளிக்கவும்';
     if (label === 'False Alarm') return 'தவறான எச்சரிக்கை';
     if (label === 'Mark Dispatched') return 'உதவி அனுப்பப்பட்டது எனக் குறி';
     if (label === 'Mark Resolved') return 'தீர்க்கப்பட்டது எனக் குறி';
@@ -42,14 +44,14 @@ const THEME = {
   warning: '#F59E0B',
 };
 
-const TABS = ['Pending', 'Acknowledged', 'Resolved'];
+const TABS = ['Received', 'In Progress', 'Resolved'];
 
 const STATUS_ACTIONS = {
-  Pending: [
-    { label: 'Acknowledge', status: 'acknowledged', color: THEME.warning, icon: 'checkmark-circle' },
+  Received: [
+    { label: 'Start response', status: 'acknowledged', color: THEME.warning, icon: 'checkmark-circle' },
     { label: 'False Alarm', status: 'false_alarm', color: THEME.textMuted, icon: 'close-circle' },
   ],
-  Acknowledged: [
+  'In Progress': [
     { label: 'Mark Dispatched', status: 'dispatched', color: THEME.primary, icon: 'navigate' },
     { label: 'False Alarm', status: 'false_alarm', color: THEME.textMuted, icon: 'close-circle' },
   ],
@@ -111,7 +113,11 @@ const openMaps = (location) => {
 function SOSCard({ item, onAction, onViewDetails }) {
   const { t, lang } = useLanguage();
   const [expanded, setExpanded] = useState(false);
-  const statusKey = item.status?.charAt(0).toUpperCase() + item.status?.slice(1);
+  const statusKey = item.status === 'pending' || item.status === 'new'
+    ? 'Received'
+    : ['acknowledged', 'dispatched'].includes(item.status)
+      ? 'In Progress'
+      : 'Resolved';
   const actions = STATUS_ACTIONS[statusKey] || STATUS_ACTIONS[item.status] || [];
   const urgColor = urgencyColor(item.urgency || item.priority);
   const boat = item.boatId || item.boat;
@@ -256,7 +262,8 @@ function SOSCard({ item, onAction, onViewDetails }) {
 
 export default function SOSMonitorScreen() {
   const { t, lang } = useLanguage();
-  const [activeTab, setActiveTab] = useState('Pending');
+  const { isConnected } = useNetwork();
+  const [activeTab, setActiveTab] = useState('Received');
   const [data, setData] = useState({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -269,14 +276,20 @@ export default function SOSMonitorScreen() {
   const fetchSOS = useCallback(async (isRefresh = false) => {
     try {
       if (!isRefresh) setLoading(true);
-      const res = await api.get(ENDPOINTS.SOS || '/sos');
-      const list = res.data?.data || res.data || [];
+      const list = getPendingSOS().map((item) => ({
+        _id: `local-sos-${item.local_id}`,
+        status: item.sync_status === 'failed' ? 'pending' : 'pending',
+        message: item.message,
+        emergencyType: item.emergency_type,
+        location: { lat: item.lat, lng: item.lng },
+        createdAt: item.created_at,
+      }));
 
       const grouped = {
-        Pending: list.filter((s) =>
+        Received: list.filter((s) =>
           ['pending', 'new'].includes(s.status?.toLowerCase())
         ),
-        Acknowledged: list.filter((s) =>
+        'In Progress': list.filter((s) =>
           ['acknowledged', 'dispatched'].includes(s.status?.toLowerCase())
         ),
         Resolved: list.filter((s) =>
@@ -284,13 +297,13 @@ export default function SOSMonitorScreen() {
         ),
       };
       setData(grouped);
-    } catch (err) {
-      console.error('SOS fetch error:', err);
+    } catch {
+      setData({ Received: [], 'In Progress': [], Resolved: [] });
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [isConnected]);
 
   useEffect(() => {
     fetchSOS();
@@ -354,7 +367,7 @@ export default function SOSMonitorScreen() {
   }, [selectedSOS, officerNotes, fetchSOS, lang, t]);
 
   const tabData = data[activeTab] || [];
-  const pendingCount = (data.Pending || []).length;
+  const pendingCount = (data.Received || []).length;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -370,8 +383,8 @@ export default function SOSMonitorScreen() {
       {/* Tabs */}
       <View style={styles.tabBar}>
         {TABS.map((tab) => {
-          const count = tab === 'Pending' ? pendingCount : null;
-          const translatedTab = tab === 'Pending' ? (t('sos.status.pending') || 'Pending') : tab === 'Acknowledged' ? (t('sos.status.acknowledged') || 'Acknowledged') : (t('sos.status.resolved') || 'Resolved');
+          const count = tab === 'Received' ? pendingCount : null;
+          const translatedTab = tab === 'Received' ? (t('sos.status.pending') || 'Received') : tab === 'In Progress' ? (t('sos.status.acknowledged') || 'In Progress') : (t('sos.status.resolved') || 'Resolved');
           return (
             <TouchableOpacity
               key={tab}
@@ -415,15 +428,15 @@ export default function SOSMonitorScreen() {
               <Ionicons
                 name={activeTab === 'Resolved' ? 'checkmark-done-circle' : 'radio'}
                 size={48}
-                color={activeTab === 'Pending' ? THEME.success : THEME.textMuted}
+                color={activeTab === 'Received' ? THEME.success : THEME.textMuted}
               />
               <Text style={styles.emptyTitle}>
-                {activeTab === 'Pending'
-                  ? (lang === 'ta' ? 'நிலυவையில் உள்ள அவசர எச்சரிக்கைகள் எதுவும் இல்லை' : 'No pending SOS alerts')
+                {activeTab === 'Received'
+                  ? (lang === 'ta' ? 'நிலுவையில் உள்ள அவசர எச்சரிக்கைகள் எதுவும் இல்லை' : 'No received SOS alerts')
                   : (lang === 'ta' ? 'குறிப்பிடப்பட்ட அவசர எச்சரிக்கைகள் எதுவும் இல்லை' : `No ${activeTab.toLowerCase()} alerts`)}
               </Text>
               <Text style={styles.emptySubtitle}>
-                {activeTab === 'Pending'
+                {activeTab === 'Received'
                   ? (lang === 'ta' ? 'எல்லாம் பாதுகாப்பானது! கடல் அமைதியாக உள்ளது.' : 'All clear! Sea is safe.')
                   : (lang === 'ta' ? 'இங்கு காண்பிக்க எதுவும் இல்லை.' : 'Nothing to show here.')}
               </Text>

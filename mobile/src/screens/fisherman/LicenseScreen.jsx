@@ -6,6 +6,7 @@ import api from '../../api/axios';
 import { ENDPOINTS } from '../../constants/api';
 import { useAuth } from '../../store/AuthContext';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/colors';
+import { getLocalProfile } from '../../db/helpers';
 
 export default function LicenseScreen({ navigation }) {
   const { user } = useAuth();
@@ -13,8 +14,15 @@ export default function LicenseScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get(ENDPOINTS.MY_PROFILE).then(r => setProfile(r.data.data)).catch(console.warn).finally(() => setLoading(false));
-  }, []);
+    const local = getLocalProfile(user?.id);
+    setProfile(local ? { user, profile: {
+      licenseNo: local.license_no,
+      licenseExpiry: local.license_expiry,
+      village: local.village,
+      district: local.district,
+    } } : { user, profile: {} });
+    setLoading(false);
+  }, [user]);
 
   const p = profile?.profile || {};
   const licenseExpiry = p.licenseExpiry;

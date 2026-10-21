@@ -6,6 +6,7 @@ import api from '../../api/axios';
 import { ENDPOINTS } from '../../constants/api';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/colors';
 import { useLanguage } from '../../store/LanguageContext';
+import { getCachedMarketPrices } from '../../db/helpers';
 
 const emptyForm = () => ({ fishName: '', fishNameTamil: '', wholesalePrice: '', retailPrice: '', unit: 'kg', market: '', district: '' });
 
@@ -22,11 +23,10 @@ export default function PriceManageScreen({ navigation }) {
 
   const load = useCallback(async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
-    try {
-      const res = await api.get(ENDPOINTS.MARKET_PRICES, { params: { limit: 100 } });
-      setPrices(res.data.data || []);
-    } catch (e) { console.warn(e.message); }
-    finally { setLoading(false); setRefreshing(false); }
+    const cached = await getCachedMarketPrices();
+    setPrices(cached || []);
+    setLoading(false);
+    setRefreshing(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);

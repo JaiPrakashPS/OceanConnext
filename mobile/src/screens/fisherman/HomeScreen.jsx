@@ -96,17 +96,8 @@ export default function HomeScreen({ navigation }) {
   const fetchWeather = useCallback(async (coords) => {
     setWeatherLoading(true);
     try {
-      if (isConnected && coords) {
-        const response = await api.get(ENDPOINTS.WEATHER, {
-          params: { lat: coords.latitude, lon: coords.longitude },
-        });
-        const weatherObj = response.data?.data || response.data;
-        setWeather(weatherObj);
-        await cacheWeather(weatherObj);
-      } else {
-        const cached = await getCachedWeather();
-        if (cached) setWeather(cached);
-      }
+      const cached = await getCachedWeather();
+      if (cached) setWeather(cached);
     } catch {
       try {
         const cached = await getCachedWeather();
@@ -120,13 +111,8 @@ export default function HomeScreen({ navigation }) {
   // ── Fetch Recent Catches ───────────────────────────────────────────────────
   const fetchRecentCatches = useCallback(async () => {
     try {
-      if (isConnected) {
-        const response = await api.get(ENDPOINTS.CATCHES, { params: { limit: 3 } });
-        setRecentCatches(response.data?.data || []);
-      } else {
-        const local = await getAllCatches(3);
-        setRecentCatches(local || []);
-      }
+      const local = await getAllCatches(3);
+      setRecentCatches(local || []);
     } catch {
       try {
         const local = await getAllCatches(3);
@@ -138,14 +124,8 @@ export default function HomeScreen({ navigation }) {
   // ── Fetch Schemes ──────────────────────────────────────────────────────────
   const fetchSchemes = useCallback(async () => {
     try {
-      if (isConnected) {
-        const response = await api.get(ENDPOINTS.SCHEMES, { params: { limit: 2 } });
-        const list = response.data?.data || response.data || [];
-        setSchemes(list.length > 0 ? list : MOCK_SCHEMES);
-      } else {
-        const cached = getCachedSchemes();
-        setSchemes(cached && cached.length > 0 ? cached : MOCK_SCHEMES);
-      }
+      const cached = getCachedSchemes();
+      setSchemes(cached && cached.length > 0 ? cached : MOCK_SCHEMES);
     } catch {
       try {
         const cached = getCachedSchemes();
@@ -185,7 +165,7 @@ export default function HomeScreen({ navigation }) {
     } else if (route === 'Compass') {
       navigation.navigate('Map', { screen: 'Compass' });
     } else if (route === 'OfflineMaps') {
-      navigation.navigate('Market', { screen: 'OfflineMaps' });
+      navigation.navigate('Map', { screen: 'OfflineMaps' });
     } else {
       navigation.navigate(route);
     }

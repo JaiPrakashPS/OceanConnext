@@ -1,5 +1,70 @@
 import { getDatabase } from './database';
 
+// ─── Local authentication ───────────────────────────────────────────────────
+
+const toUser = (row) => ({
+  id: row.id,
+  name: row.name,
+  email: row.email,
+  phone: row.phone || null,
+  role: row.role,
+  preferredLanguage: row.preferred_language || 'ta',
+});
+
+export const authenticateLocalUser = (email, password) => {
+  const row = getDatabase().getFirstSync(
+    `SELECT * FROM users WHERE email = ? COLLATE NOCASE AND password = ? AND is_active = 1`,
+    [email.trim().toLowerCase(), password]
+  );
+  return row ? toUser(row) : null;
+};
+
+export const getLocalUser = (id) => {
+  const row = getDatabase().getFirstSync(
+    `SELECT * FROM users WHERE id = ? AND is_active = 1`,
+    [id]
+  );
+  return row ? toUser(row) : null;
+};
+
+export const createLocalUser = ({ name, email, password, phone, role = 'fisherman', preferredLanguage = 'ta' }) => {
+  const id = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  getDatabase().runSync(
+    `INSERT INTO users (id, name, email, password, phone, role, preferred_language)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [id, name.trim(), email.trim().toLowerCase(), password, phone?.trim() || null, role, preferredLanguage]
+  );
+  return getLocalUser(id);
+};
+
+export const resetLocalPassword = (email, password) => {
+  const result = getDatabase().runSync(
+    `UPDATE users SET password = ? WHERE email = ? COLLATE NOCASE AND is_active = 1`,
+    [password, email.trim().toLowerCase()]
+  );
+  return result.changes > 0;
+};
+
+export const saveLocalProfile = (user) => {
+  getDatabase().runSync(
+    `INSERT OR REPLACE INTO profile_cache
+      (user_id, name, email, phone, role, preferred_language)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [user.id, user.name, user.email, user.phone || null, user.role, user.preferredLanguage || 'ta']
+  );
+};
+
+export const saveLocalBoat = (boat) => {
+  const id = `local-boat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  getDatabase().runSync(
+    `INSERT INTO boats_cache
+      (server_id, name, registration_no, type, capacity, is_active)
+     VALUES (?, ?, ?, ?, ?, 1)`,
+    [id, boat.name, boat.registrationNo, boat.type || 'motorized', boat.capacity || 1]
+  );
+  return id;
+};
+
 // ─── Catches ─────────────────────────────────────────────────────────────────
 
 export const saveCatchOffline = (data) => {
@@ -22,7 +87,7 @@ export const saveCatchOffline = (data) => {
 
 export const getPendingCatches = () => {
   const db = getDatabase();
-  return db.getAllSync(`SELECT * FROM catches_offline WHERE sync_status = 'pending'`);
+  return db.getAllSync(`SELECT * FROM catches_offline WHERE sync_status IN ('pending', 'failed')`);
 };
 
 export const markCatchSynced = (localId, serverId) => {
@@ -30,6 +95,12 @@ export const markCatchSynced = (localId, serverId) => {
   db.runSync(
     `UPDATE catches_offline SET sync_status = 'synced', server_id = ?, updated_at = datetime('now') WHERE local_id = ?`,
     [serverId, localId]
+  );
+};
+export const markCatchFailed = (localId, error) => {
+  getDatabase().runSync(
+    `UPDATE catches_offline SET sync_status = 'failed', sync_error = ?, updated_at = datetime('now') WHERE local_id = ?`,
+    [error || 'Sync failed', localId]
   );
 };
 
@@ -40,6 +111,46 @@ export const getAllCatches = (limit = 50) => {
     [limit]
   );
 };
+
+export const getAllLocalBoats = () => getDatabase().getAllSync(
+  `SELECT * FROM boats_cache WHERE is_active = 1 ORDER BY name`
+);
+
+export const getLocalUsers = (role) => getDatabase().getAllSync(
+  `SELECT id, name, email, phone, role, is_active AS isActive FROM users
+   WHERE is_active = 1 AND role = ? ORDER BY name`,
+  [role]
+);
+
+export const getLocalProfile = (userId) => getDatabase().getFirstSync(
+  `SELECT * FROM profile_cache WHERE user_id = ?`,
+  [userId]
+);
+
+export const getCachedNotifications = () => getDatabase().getAllSync(
+  `SELECT * FROM notifications_cache ORDER BY created_at DESC`
+);
+
+export const markNotificationRead = (id) => {
+  getDatabase().runSync(`UPDATE notifications_cache SET is_read = 1 WHERE server_id = ?`, [id]);
+};
+
+export const getLocalComplaints = (status) => {
+  const rows = getDatabase().getAllSync(
+    `SELECT * FROM complaints_offline ORDER BY created_at DESC`
+  );
+  return rows.map((row) => ({
+    _id: `local-complaint-${row.local_id}`,
+    category: row.category,
+    title: row.title,
+    description: row.description,
+    status: row.sync_status === 'synced' ? 'submitted' : 'submitted',
+    createdAt: row.created_at,
+    location: row.lat == null ? null : { lat: row.lat, lng: row.lng },
+  })).filter((row) => !status || row.status === status);
+};
+
+export const getLocalFishingZones = () => getCachedFishingZones();
 
 // ─── SOS ─────────────────────────────────────────────────────────────────────
 
@@ -53,16 +164,16 @@ export const saveSOSOffline = (data) => {
   const boatId = data.boatId || null;
 
   const result = db.runSync(
-    `INSERT INTO sos_offline (lat, lng, accuracy, message, emergency_type, boat_id, sync_status)
-     VALUES (?, ?, ?, ?, ?, ?, 'pending')`,
-    [lat, lng, accuracy, message, emergencyType, boatId]
+    `INSERT INTO sos_offline (message_id, lat, lng, accuracy, message, emergency_type, boat_id, sync_status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`,
+    [data.messageId || null, lat, lng, accuracy, message, emergencyType, boatId]
   );
   return result.lastInsertRowId;
 };
 
 export const getPendingSOS = () => {
   const db = getDatabase();
-  return db.getAllSync(`SELECT * FROM sos_offline WHERE sync_status = 'pending'`);
+  return db.getAllSync(`SELECT * FROM sos_offline WHERE sync_status IN ('pending', 'failed')`);
 };
 
 export const markSOSSynced = (localId, serverId) => {
@@ -70,6 +181,12 @@ export const markSOSSynced = (localId, serverId) => {
   db.runSync(
     `UPDATE sos_offline SET sync_status = 'synced', server_id = ?, updated_at = datetime('now') WHERE local_id = ?`,
     [serverId, localId]
+  );
+};
+export const markSOSFailed = (localId, error) => {
+  getDatabase().runSync(
+    `UPDATE sos_offline SET sync_status = 'failed', sync_error = ?, updated_at = datetime('now') WHERE local_id = ?`,
+    [error || 'Sync failed', localId]
   );
 };
 
@@ -87,7 +204,7 @@ export const saveComplaintOffline = (data) => {
 
 export const getPendingComplaints = () => {
   const db = getDatabase();
-  return db.getAllSync(`SELECT * FROM complaints_offline WHERE sync_status = 'pending'`);
+  return db.getAllSync(`SELECT * FROM complaints_offline WHERE sync_status IN ('pending', 'failed')`);
 };
 
 export const markComplaintSynced = (localId, serverId) => {
@@ -95,6 +212,12 @@ export const markComplaintSynced = (localId, serverId) => {
   db.runSync(
     `UPDATE complaints_offline SET sync_status = 'synced', server_id = ?, updated_at = datetime('now') WHERE local_id = ?`,
     [serverId, localId]
+  );
+};
+export const markComplaintFailed = (localId, error) => {
+  getDatabase().runSync(
+    `UPDATE complaints_offline SET sync_status = 'failed', sync_error = ?, updated_at = datetime('now') WHERE local_id = ?`,
+    [error || 'Sync failed', localId]
   );
 };
 
@@ -159,7 +282,7 @@ export const saveFishingZoneOffline = (data) => {
 
 export const getPendingFishingZones = () => {
   const db = getDatabase();
-  return db.getAllSync(`SELECT * FROM fishing_zones_offline WHERE sync_status = 'pending'`);
+  return db.getAllSync(`SELECT * FROM fishing_zones_offline WHERE sync_status IN ('pending', 'failed')`);
 };
 
 export const markFishingZoneSynced = (localId, serverId) => {
@@ -167,6 +290,12 @@ export const markFishingZoneSynced = (localId, serverId) => {
   db.runSync(
     `UPDATE fishing_zones_offline SET sync_status = 'synced', server_id = ?, updated_at = datetime('now') WHERE local_id = ?`,
     [serverId, localId]
+  );
+};
+export const markFishingZoneFailed = (localId, error) => {
+  getDatabase().runSync(
+    `UPDATE fishing_zones_offline SET sync_status = 'failed', sync_error = ?, updated_at = datetime('now') WHERE local_id = ?`,
+    [error || 'Sync failed', localId]
   );
 };
 

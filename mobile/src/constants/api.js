@@ -1,6 +1,6 @@
 // Your machine's Wi-Fi IP — both PC and phone must be on the same network
 // Run `ipconfig` to find your IPv4 address if this changes
-export const API_BASE_URL = 'http://172.17.8.38:5000/api/v1';
+export const API_BASE_URL = 'http://10.173.154.215:5000/api/v1';
 
 export const ENDPOINTS = {
   // Auth
@@ -26,6 +26,7 @@ export const ENDPOINTS = {
   // Fishing zones
   FISHING_ZONES: '/fishing-zones',
   FISHING_ZONE_BY_ID: (id) => `/fishing-zones/${id}`,
+  MAP_DATA: '/officer/map-data',
 
   // SOS
   SOS: '/sos',

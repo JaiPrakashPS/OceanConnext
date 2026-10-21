@@ -6,6 +6,7 @@ import api from '../../api/axios';
 import { ENDPOINTS } from '../../constants/api';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/colors';
 import { useLanguage } from '../../store/LanguageContext';
+import { getLocalComplaints } from '../../db/helpers';
 
 const STATUS_CONFIG = {
   submitted: { color: COLORS.info, label: 'Submitted' },
@@ -37,11 +38,9 @@ export default function ComplaintResolveScreen({ navigation }) {
 
   const load = useCallback(async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
-    try {
-      const res = await api.get(ENDPOINTS.COMPLAINTS, { params: { status: activeTab, limit: 50 } });
-      setComplaints(res.data.data || []);
-    } catch (e) { console.warn(e.message); }
-    finally { setLoading(false); setRefreshing(false); }
+    setComplaints(getLocalComplaints(activeTab));
+    setLoading(false);
+    setRefreshing(false);
   }, [activeTab]);
 
   useEffect(() => { load(); }, [load]);
@@ -103,7 +102,7 @@ export default function ComplaintResolveScreen({ navigation }) {
         <FlatList
           data={complaints}
           renderItem={renderItem}
-          keyExtractor={i => i._id}
+          keyExtractor={i => i._id || String(i.local_id)}
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(true); }} tintColor={COLORS.primary} />}
           ListEmptyComponent={<View style={styles.empty}><Ionicons name="document-outline" size={48} color={COLORS.textMuted} /><Text style={styles.emptyText}>{lang === 'ta' ? 'புகார்கள் எதுவும் இல்லை' : 'No complaints'}</Text></View>}

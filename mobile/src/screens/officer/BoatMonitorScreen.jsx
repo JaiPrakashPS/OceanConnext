@@ -6,6 +6,7 @@ import api from '../../api/axios';
 import { ENDPOINTS } from '../../constants/api';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/colors';
 import { useLanguage } from '../../store/LanguageContext';
+import { getAllLocalBoats } from '../../db/helpers';
 
 const BOAT_TYPE_COLORS = {
   mechanized: COLORS.primary, motorized: COLORS.success, traditional: COLORS.secondary, fiber: COLORS.info,
@@ -20,11 +21,15 @@ export default function BoatMonitorScreen({ navigation }) {
 
   const load = useCallback(async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
-    try {
-      const res = await api.get(ENDPOINTS.BOATS, { params: { limit: 200 } });
-      setBoats(res.data.data || []);
-    } catch (e) { console.warn(e.message); }
-    finally { setLoading(false); setRefreshing(false); }
+    const localBoats = getAllLocalBoats().map((boat) => ({
+      ...boat,
+      _id: boat.server_id,
+      registrationNo: boat.registration_no,
+      isActive: Boolean(boat.is_active),
+    }));
+    setBoats(localBoats);
+    setLoading(false);
+    setRefreshing(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -95,7 +100,7 @@ export default function BoatMonitorScreen({ navigation }) {
         <FlatList
           data={filtered}
           renderItem={renderItem}
-          keyExtractor={i => i._id}
+          keyExtractor={i => i._id || String(i.id)}
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(true); }} tintColor={COLORS.primary} />}
           ListEmptyComponent={<View style={styles.empty}><Ionicons name="boat-outline" size={48} color={COLORS.textMuted} /><Text style={styles.emptyText}>{lang === 'ta' ? 'படகுகள் எதுவும் காணப்படவில்லை' : 'No boats found'}</Text></View>}

@@ -122,23 +122,10 @@ export default function ComplaintScreen() {
 
     setSubmitting(true);
     try {
-      if (isConnected) {
-        await api.post(ENDPOINTS.COMPLAINTS || '/complaints', payload);
-      } else {
-        await saveComplaintOffline(payload);
-      }
+      await saveComplaintOffline(payload);
       setSubmitted(true);
     } catch (err) {
-      if (!isConnected) {
-        try {
-          await saveComplaintOffline(payload);
-          setSubmitted(true);
-        } catch (dbErr) {
-          Alert.alert(t('common.error'), t('complaint.saveFailed'));
-        }
-      } else {
-        Alert.alert(t('complaint.submitFailed'), err?.response?.data?.message || t('catch.valError'));
-      }
+      Alert.alert(t('complaint.submitFailed'), err?.message || t('catch.valError'));
     } finally {
       setSubmitting(false);
     }

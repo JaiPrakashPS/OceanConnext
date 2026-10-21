@@ -196,30 +196,21 @@ export default function OfficerHomeScreen({ navigation }) {
     try {
       if (!isRefresh) setLoading(true);
       setError(null);
-      const res = await api.get(ENDPOINTS.ANALYTICS_OVERVIEW || '/analytics/overview');
-      const data = res.data?.data || res.data;
-
-      // Normalize the analytics overview response into the expected stats shape
-      const normalized = {
+      setOverview({
         stats: {
-          totalFishermen:  data?.fishermen?.total  ?? data?.stats?.totalFishermen  ?? 0,
-          activeSOS:       data?.sos?.pending       ?? data?.stats?.activeSOS       ?? 0,
-          openIncidents:   data?.incidents?.open    ?? data?.stats?.openIncidents   ?? 0,
-          openComplaints:  data?.complaints?.open   ?? data?.stats?.openComplaints  ?? 0,
-          totalBoats:      data?.boats?.total       ?? data?.stats?.totalBoats      ?? 0,
-          totalOfficers:   data?.officers?.total    ?? data?.stats?.totalOfficers   ?? 0,
+          totalFishermen: 0, activeSOS: 0, openIncidents: 0,
+          openComplaints: 0, totalBoats: 0, totalCatches: 0,
+          availableZones: 0, totalOfficers: 0,
         },
-        recentSOS: data?.recentSOS || [],
-      };
-      setOverview(normalized);
+        recentSOS: [],
+      });
     } catch (err) {
-      setError(lang === 'ta' ? 'டாஷ்போர்டு தரவை ஏற்ற முடியவில்லை' : 'Failed to load dashboard data');
-      console.error('OfficerHome fetch error:', err);
+      setError(lang === 'ta' ? 'இணைப்பு இல்லை. உள்ளூர் தரவு காட்டப்படுகிறது' : 'Offline mode: local data is displayed');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [lang]);
+  }, [isConnected, lang]);
 
   const loadData = useCallback(async (isRefresh = false) => {
     const coords = await fetchLocation();
@@ -236,6 +227,12 @@ export default function OfficerHomeScreen({ navigation }) {
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     loadData(true).finally(() => setRefreshing(false));
+  }, [loadData]);
+
+  const retryDashboard = useCallback(() => {
+    setError(null);
+    setLoading(true);
+    loadData(true);
   }, [loadData]);
 
   const handleOfficerAction = (screen) => {
@@ -259,6 +256,8 @@ export default function OfficerHomeScreen({ navigation }) {
     { icon: 'ribbon', label: lang === 'ta' ? 'திட்டங்கள்' : 'Schemes', color: THEME.success, screen: 'SchemePublish' },
     { icon: 'pricetag', label: lang === 'ta' ? 'விலை நிலவரம்' : 'Prices', color: '#A78BFA', screen: 'PriceManage' },
     { icon: 'megaphone', label: lang === 'ta' ? 'அறிவிப்பு' : 'Broadcast', color: THEME.secondary, screen: 'Broadcast' },
+    { icon: 'navigate', label: lang === 'ta' ? 'வரைபடம்' : 'Map View', color: '#22D3EE', screen: 'MapView' },
+    { icon: 'locate', label: lang === 'ta' ? 'மீன்பிடி மண்டலங்கள்' : 'Fishing Zones', color: '#34D399', screen: 'FishingZones' },
   ];
 
   const renderWeatherCard = () => (
@@ -276,7 +275,7 @@ export default function OfficerHomeScreen({ navigation }) {
         >
           <View style={styles.weatherHeader}>
             <View style={styles.weatherTitleContainer}>
-              <Ionicons name="cloud-sunny-outline" size={16} color={THEME.secondary} />
+              <Ionicons name="partly-sunny-outline" size={16} color={THEME.secondary} />
               <Text style={styles.weatherTitle}>{t('home.weatherWidget') || 'Current Weather'}</Text>
             </View>
             <View style={styles.liveIndicator}>
@@ -389,10 +388,10 @@ export default function OfficerHomeScreen({ navigation }) {
             <Text style={styles.loadingText}>{lang === 'ta' ? 'ஏற்றப்படுகிறது…' : 'Loading dashboard…'}</Text>
           </View>
         ) : error ? (
-          <View style={styles.errorBox}>
-            <Ionicons name="cloud-offline" size={36} color={THEME.danger} />
-            <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity style={styles.retryBtn} onPress={() => loadData()}>
+          <View style={styles.offlineBox}>
+            <Ionicons name="cloud-offline-outline" size={24} color={THEME.warning} />
+            <Text style={styles.offlineText}>{error}</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={retryDashboard}>
               <Text style={styles.retryBtnText}>{lang === 'ta' ? 'மீண்டும் முயற்சி' : 'Retry'}</Text>
             </TouchableOpacity>
           </View>
@@ -417,11 +416,25 @@ export default function OfficerHomeScreen({ navigation }) {
                 onPress={() => handleOfficerAction('SOSMonitor')}
               />
               <StatCard
-                icon="chatbubble-ellipses"
-                label={t('officer.complaints') || 'Complaints'}
-                value={stats.openComplaints ?? 0}
+                icon="boat"
+                label={lang === 'ta' ? 'படகுகள்' : 'Boats'}
+                value={stats.totalBoats ?? 0}
+                color={THEME.secondary}
+                onPress={() => handleOfficerAction('BoatMonitor')}
+              />
+              <StatCard
+                icon="fish"
+                label={lang === 'ta' ? 'மீன் கண்காணிப்புகள்' : 'Fish observations'}
+                value={stats.totalCatches ?? 0}
                 color={THEME.success}
-                onPress={() => handleOfficerAction('ComplaintResolve')}
+                onPress={() => handleOfficerAction('CatchMonitor')}
+              />
+              <StatCard
+                icon="locate"
+                label={lang === 'ta' ? 'மீன்பிடி மண்டலங்கள்' : 'Fishing zones'}
+                value={stats.availableZones ?? 0}
+                color="#22D3EE"
+                onPress={() => handleOfficerAction('FishingZones')}
               />
             </View>
 
@@ -733,12 +746,16 @@ const styles = StyleSheet.create({
 
   centered: { alignItems: 'center', paddingVertical: 50 },
   loadingText: { color: THEME.textMuted, marginTop: 12, fontSize: 14 },
-  errorBox: {
+  offlineBox: {
     alignItems: 'center',
-    paddingVertical: 40,
+    paddingVertical: 18,
     marginHorizontal: 16,
+    backgroundColor: '#1E293B',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: THEME.border,
   },
-  errorText: { color: THEME.danger, marginTop: 10, fontSize: 14, textAlign: 'center' },
+  offlineText: { color: THEME.textMuted, marginTop: 8, fontSize: 14, textAlign: 'center' },
   retryBtn: {
     marginTop: 14,
     backgroundColor: THEME.primary,

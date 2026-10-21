@@ -7,6 +7,7 @@ import {
   StyleSheet,
   TextInput,
   Alert,
+  Modal,
   RefreshControl,
   ActivityIndicator,
   Animated,
@@ -159,7 +160,9 @@ function SwipeableCard({ item, onDelete, onPress }) {
             <View style={styles.catchStat}>
               <Ionicons name="scale-outline" size={13} color={THEME.textMuted} />
               <Text style={styles.catchStatText}>
-                {item.weight != null ? `${item.weight} kg` : item.weight_kg != null ? `${item.weight_kg} kg` : '—'}
+                {item.weight != null
+                  ? `${item.weight} ${item.weightUnit || item.weight_unit || 'kg'}`
+                  : item.weight_kg != null ? `${item.weight_kg} kg` : '—'}
               </Text>
             </View>
             <View style={styles.statDot} />
@@ -198,6 +201,7 @@ export default function CatchHistoryScreen({ navigation }) {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [stats, setStats] = useState({ totalCatches: 0, totalEarnings: 0, totalWeight: 0 });
+  const [selectedCatch, setSelectedCatch] = useState(null);
 
   const computeStats = useCallback((data) => {
     const now = new Date();
@@ -207,7 +211,7 @@ export default function CatchHistoryScreen({ navigation }) {
     });
     const totalCatches = thisMonth.length;
     const totalEarnings = thisMonth.reduce((sum, c) => sum + (c.earnings || 0), 0);
-    const totalWeight = thisMonth.reduce((sum, c) => sum + (c.weight_kg || 0), 0);
+    const totalWeight = thisMonth.reduce((sum, c) => sum + Number(c.weight ?? c.weight_kg ?? 0), 0);
     setStats({ totalCatches, totalEarnings, totalWeight });
   }, []);
 
@@ -221,9 +225,40 @@ export default function CatchHistoryScreen({ navigation }) {
         try {
           const res = await api.get(ENDPOINTS.CATCHES || '/catches');
           const remote = res.data?.data || res.data || [];
-          const remoteIds = new Set(remote.map((r) => r.id));
-          const localOnly = merged.filter((l) => !remoteIds.has(l.id));
-          merged = [...remote, ...localOnly];
+          const localByServerId = new Map(
+            merged
+              .filter((l) => l.server_id)
+              .map((l) => [String(l.server_id), l])
+          );
+          const remoteWithLocalDetails = remote.map((r) => {
+            const localRecord = localByServerId.get(String(r._id || r.id));
+            if (!localRecord) return r;
+
+            return {
+              ...r,
+              speciesTamil: r.speciesTamil ?? localRecord.species_tamil,
+              quantity: r.quantity ?? localRecord.quantity,
+              weight: r.weight ?? localRecord.weight,
+              weightUnit: r.weightUnit ?? localRecord.weight_unit,
+              earnings: r.earnings ?? localRecord.earnings,
+              location: r.location || (
+                localRecord.catch_location_name || localRecord.catch_lat != null || localRecord.catch_lng != null
+                  ? {
+                      lat: localRecord.catch_lat ?? null,
+                      lng: localRecord.catch_lng ?? null,
+                      name: localRecord.catch_location_name || null,
+                    }
+                  : null
+              ),
+              notes: r.notes ?? localRecord.notes,
+            };
+          });
+          const remoteIds = new Set(remote.map((r) => String(r._id || r.id)));
+          const localOnly = merged.filter((l) => {
+            const serverId = l.server_id ? String(l.server_id) : null;
+            return !serverId || !remoteIds.has(serverId);
+          });
+          merged = [...remoteWithLocalDetails, ...localOnly];
         } catch {}
       }
       merged.sort((a, b) => new Date(b.created_at || b.date) - new Date(a.created_at || a.date));
@@ -395,7 +430,7 @@ export default function CatchHistoryScreen({ navigation }) {
             <SwipeableCard
               item={item}
               onDelete={handleDelete}
-              onPress={() => {}}
+              onPress={setSelectedCatch}
             />
           )}
           contentContainerStyle={styles.listContent}
@@ -414,6 +449,36 @@ export default function CatchHistoryScreen({ navigation }) {
           }
         />
       )}
+
+      <Modal
+        visible={!!selectedCatch}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSelectedCatch(null)}
+      >
+        <View style={styles.detailOverlay}>
+          <View style={styles.detailCard}>
+            <View style={styles.detailHeader}>
+              <Text style={styles.detailTitle}>{t('catch.historyTitle')}</Text>
+              <TouchableOpacity onPress={() => setSelectedCatch(null)}>
+                <Ionicons name="close-circle" size={26} color={THEME.textMuted} />
+              </TouchableOpacity>
+            </View>
+            {selectedCatch && (
+              <>
+                <Text style={styles.detailSpecies}>{selectedCatch.species || selectedCatch.species_name || 'Unknown species'}</Text>
+                <Text style={styles.detailRow}>Quantity: {selectedCatch.quantity ?? '—'}</Text>
+                <Text style={styles.detailRow}>Weight: {selectedCatch.weight ?? selectedCatch.weight_kg ?? '—'} {selectedCatch.weightUnit || selectedCatch.weight_unit || 'kg'}</Text>
+                <Text style={styles.detailRow}>Earnings: ₹{Number(selectedCatch.earnings ?? 0).toLocaleString('en-IN')}</Text>
+                <Text style={styles.detailRow}>Location: {selectedCatch.location?.name || selectedCatch.catch_location_name || 'Not recorded'}</Text>
+                <Text style={styles.detailRow}>Date: {selectedCatch.catchDate || selectedCatch.catch_date || selectedCatch.created_at || '—'}</Text>
+                <Text style={styles.detailRow}>Sync: {selectedCatch.sync_status || (selectedCatch.synced ? 'synced' : 'server record')}</Text>
+                {!!selectedCatch.notes && <Text style={styles.detailNotes}>{selectedCatch.notes}</Text>}
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
 
       {/* FAB */}
       <TouchableOpacity
@@ -719,4 +784,23 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 10,
   },
+  detailOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.65)',
+  },
+  detailCard: {
+    backgroundColor: THEME.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    borderColor: THEME.border,
+    padding: 22,
+    paddingBottom: 34,
+  },
+  detailHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
+  detailTitle: { color: THEME.text, fontSize: 18, fontWeight: '800' },
+  detailSpecies: { color: THEME.secondary, fontSize: 22, fontWeight: '800', marginBottom: 12 },
+  detailRow: { color: THEME.textMuted, fontSize: 14, marginBottom: 8 },
+  detailNotes: { color: THEME.text, fontSize: 14, marginTop: 8, lineHeight: 20 },
 });

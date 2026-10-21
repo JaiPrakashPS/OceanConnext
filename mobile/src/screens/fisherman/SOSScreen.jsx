@@ -19,7 +19,7 @@ import { useAuth } from '../../store/AuthContext';
 import { useLanguage } from '../../store/LanguageContext';
 import api from '../../api/axios';
 import { ENDPOINTS } from '../../constants/api';
-import { saveSOSOffline } from '../../db/helpers';
+import { saveSOSOffline, getCachedBoats } from '../../db/helpers';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/colors';
 
 // ─── Emergency Types ──────────────────────────────────────────────────────────
@@ -60,6 +60,9 @@ export default function SOSScreen({ navigation }) {
   const [sosConfirmed,    setSosConfirmed]      = useState(false);
   const [submitting,      setSubmitting]        = useState(false);
   const [secondsLeft,     setSecondsLeft]       = useState(3);
+  const [loraStage,       setLoraStage]         = useState('idle'); // idle | connecting | transmitting | hopping | simulationComplete
+  const [deliveryStatus,  setDeliveryStatus]   = useState('pending'); // pending | sent | failed
+  const [messageId,       setMessageId]        = useState(null);
 
   // ── Refs ───────────────────────────────────────────────────────────────────
   const holdTimer        = useRef(null);
@@ -154,33 +157,60 @@ export default function SOSScreen({ navigation }) {
 
   // ── Trigger SOS ───────────────────────────────────────────────────────────
   const triggerSOS = async () => {
+    if (!location) {
+      Alert.alert(
+        'Location unavailable',
+        'SOS requires a GPS fix. Enable location and try again.'
+      );
+      return;
+    }
     Vibration.vibrate([100, 100, 100, 100, 300]);
     setSubmitting(true);
+    setSosConfirmed(true);
+    setIsHolding(false);
+    playConfirmAnimation();
+
+    const generatedMessageId = `sos-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setMessageId(generatedMessageId);
+    let boatId = null;
+    try {
+      const cachedBoats = getCachedBoats();
+      boatId = cachedBoats?.[0]?._id || cachedBoats?.[0]?.server_id || null;
+    } catch {}
 
     const payload = {
+      messageId:      generatedMessageId,
+      localId:        generatedMessageId,
       emergency_type: emergencyType.id,
       latitude:       location?.latitude  ?? null,
       longitude:      location?.longitude ?? null,
-      user_id:        user?.id            ?? null,
-      user_name:      user?.name          ?? 'Unknown',
+      fishermanId:    user?.id            ?? null,
+      boatId,
       timestamp:      new Date().toISOString(),
+      status:         'pending',
     };
 
+    // Hardware is not configured in this build; keep the relay sequence visibly simulated.
+    setLoraStage('connecting');
+    await new Promise(r => setTimeout(r, 1500));
+    setLoraStage('transmitting');
+    await new Promise(r => setTimeout(r, 2000));
+    setLoraStage('hopping');
+    await new Promise(r => setTimeout(r, 2500));
+    setLoraStage('simulationComplete');
+
     try {
-      if (isConnected) {
-        await api.post(ENDPOINTS.SOS, payload);
-      } else {
-        await saveSOSOffline(payload);
-      }
+      await saveSOSOffline(payload);
+      setDeliveryStatus('pending');
     } catch {
       try {
         await saveSOSOffline(payload);
-      } catch {}
+        setDeliveryStatus('pending');
+      } catch {
+        setDeliveryStatus('failed');
+      }
     } finally {
       setSubmitting(false);
-      setIsHolding(false);
-      setSosConfirmed(true);
-      playConfirmAnimation();
     }
   };
 
@@ -323,18 +353,53 @@ export default function SOSScreen({ navigation }) {
           {/* ── Confirm / Cancel ─────────────────────────────────────────── */}
           {sosConfirmed && (
             <View style={styles.confirmedSection}>
-              <View style={styles.helpOnWayCard}>
-                <Ionicons name="shield-checkmark" size={28} color="#10B981" />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.helpOnWayTitle}>{t('sos.helpOnWay')}</Text>
-                  <Text style={styles.helpOnWayDesc}>
-                    {t('sos.sentMsg')}
-                  </Text>
+              {loraStage !== 'simulationComplete' ? (
+                <View style={styles.loraMockCard}>
+                  <Text style={styles.loraMockTitle}>Simulation mode: Bluetooth / LoRa hardware not configured</Text>
+                  
+                  <View style={styles.loraStageRow}>
+                    <Ionicons name="bluetooth" size={20} color={loraStage === 'connecting' ? '#3B82F6' : '#10B981'} />
+                    <Text style={styles.loraStageText}>
+                      {loraStage === 'connecting' ? 'Connecting to ESP32...' : 'Connected to LoRa Device'}
+                    </Text>
+                  </View>
+                  
+                  {['transmitting', 'hopping', 'simulationComplete'].includes(loraStage) && (
+                    <View style={styles.loraStageRow}>
+                      <Ionicons name="radio-outline" size={20} color={loraStage === 'transmitting' ? '#3B82F6' : '#10B981'} />
+                      <Text style={styles.loraStageText}>
+                        {loraStage === 'transmitting' ? 'Transmitting Distress Signal...' : 'Signal Transmitted'}
+                      </Text>
+                    </View>
+                  )}
+
+                  {['hopping', 'simulationComplete'].includes(loraStage) && (
+                    <View style={styles.loraStageRow}>
+                      <Ionicons name="git-network-outline" size={20} color={loraStage === 'hopping' ? '#3B82F6' : '#10B981'} />
+                      <Text style={styles.loraStageText}>
+                        {loraStage === 'hopping' ? 'Multi-Hop Relay in Progress...' : 'Relayed to Control Station'}
+                      </Text>
+                    </View>
+                  )}
+                  <ActivityIndicator size="small" color="#3B82F6" style={{ marginTop: 10 }} />
                 </View>
-              </View>
-              <TouchableOpacity style={styles.cancelSosBtn} onPress={handleCancel} activeOpacity={0.8}>
-                <Ionicons name="close-circle-outline" size={18} color="#EF4444" />
-                <Text style={styles.cancelSosBtnText}>{t('sos.cancelAlert')}</Text>
+              ) : (
+                <View style={styles.helpOnWayCard}>
+                  <Ionicons name={deliveryStatus === 'sent' ? 'cloud-done-outline' : 'cloud-upload-outline'} size={28} color={deliveryStatus === 'sent' ? '#10B981' : '#F59E0B'} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.helpOnWayTitle}>
+                      {deliveryStatus === 'sent' ? 'Sent to backend' : deliveryStatus === 'failed' ? 'Sync failed' : 'Pending sync'}
+                    </Text>
+                    <Text style={styles.helpOnWayDesc}>
+                      {`Message ${messageId || ''} was not confirmed by Bluetooth, LoRa, a relay, or a control station. ${deliveryStatus === 'sent' ? 'The backend accepted the SOS record.' : 'It remains available for retry.'}`}
+                    </Text>
+                  </View>
+                </View>
+              )}
+              
+              <TouchableOpacity style={styles.cancelSosBtn} onPress={handleCancel} activeOpacity={0.8} disabled={loraStage !== 'simulationComplete' && loraStage !== 'idle'}>
+                <Ionicons name="close-circle-outline" size={18} color={loraStage !== 'simulationComplete' ? '#94A3B8' : '#EF4444'} />
+                <Text style={[styles.cancelSosBtnText, loraStage !== 'simulationComplete' && { color: '#94A3B8' }]}>{t('sos.cancelAlert')}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -637,6 +702,32 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     fontSize: 14,
     fontWeight: '600',
+  },
+  loraMockCard: {
+    backgroundColor: '#1E3A8A22',
+    borderWidth: 1,
+    borderColor: '#3B82F655',
+    borderRadius: RADIUS.xl,
+    padding: SPACING.lg,
+    marginBottom: SPACING.md,
+  },
+  loraMockTitle: {
+    color: '#60A5FA',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: SPACING.md,
+    textAlign: 'center',
+  },
+  loraStageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+  loraStageText: {
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: '500',
   },
 
   // Section

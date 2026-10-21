@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../store/AuthContext';
 import { ActivityIndicator, View } from 'react-native';
 import { COLORS } from '../constants/colors';
@@ -9,7 +9,7 @@ import AuthNavigator from './AuthNavigator';
 import FishermanNavigator from './FishermanNavigator';
 import OfficerNavigator from './OfficerNavigator';
 
-const Stack = createStackNavigator();
+const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
   const { user, loading } = useAuth();

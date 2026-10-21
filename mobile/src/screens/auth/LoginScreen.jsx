@@ -17,7 +17,7 @@ const C = {
 };
 
 export default function LoginScreen({ navigation }) {
-  const { login } = useAuth();
+  const { login, logout } = useAuth();
   const [lang, setLang] = useState('ta');
   const [role, setRole] = useState('fisherman');
   const [email, setEmail] = useState('');
@@ -59,6 +59,16 @@ export default function LoginScreen({ navigation }) {
     try {
       setLoading(true);
       const user = await login(email.trim().toLowerCase(), password);
+      if (role === 'officer' && user.role !== 'officer') {
+        await logout();
+        setError('This account is not authorized for the Fisheries Officer app.');
+        return;
+      }
+      if (role === 'fisherman' && user.role !== 'fisherman') {
+        await logout();
+        setError('Select the Officer option to sign in with this account.');
+        return;
+      }
       // Navigation handled by root navigator based on user.role
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || 'Login failed.');

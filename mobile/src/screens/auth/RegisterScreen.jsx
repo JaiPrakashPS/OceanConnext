@@ -41,6 +41,15 @@ const STRINGS = {
     emailPh:      'Enter your email',
     phone:        'Phone Number',
     phonePh:      'Enter your phone number',
+    boatDetails:  'Boat Details (optional)',
+    boatName:     'Boat Name',
+    boatNamePh:   'e.g. Sea Queen',
+    boatReg:      'Boat Registration Number',
+    boatRegPh:    'e.g. TN-01-F-1234',
+    boatType:     'Boat Type',
+    boatTypePh:   'motorized / traditional / fiber',
+    boatCapacity: 'Crew Capacity',
+    boatCapacityPh: 'e.g. 5',
     password:     'Password',
     passwordPh:   'Create a password',
     confirmPwd:   'Confirm Password',
@@ -60,6 +69,15 @@ const STRINGS = {
     emailPh:      'மின்னஞ்சலை உள்ளிடவும்',
     phone:        'தொலைபேசி எண்',
     phonePh:      'தொலைபேசி எண்ணை உள்ளிடவும்',
+    boatDetails:  'படகு விவரங்கள் (விருப்பம்)',
+    boatName:     'படகு பெயர்',
+    boatNamePh:   'எ.கா. கடல் அரசி',
+    boatReg:      'படகு பதிவு எண்',
+    boatRegPh:    'எ.கா. TN-01-F-1234',
+    boatType:     'படகு வகை',
+    boatTypePh:   'motorized / traditional / fiber',
+    boatCapacity: 'குழு கொள்ளளவு',
+    boatCapacityPh: 'எ.கா. 5',
     password:     'கடவுச்சொல்',
     passwordPh:   'கடவுச்சொல் உருவாக்கவும்',
     confirmPwd:   'கடவுச்சொல் உறுதிப்படுத்து',
@@ -79,6 +97,10 @@ export default function RegisterScreen({ navigation }) {
   const [fullName,       setFullName]       = useState('');
   const [email,          setEmail]          = useState('');
   const [phone,          setPhone]          = useState('');
+  const [boatName,       setBoatName]       = useState('');
+  const [boatReg,        setBoatReg]        = useState('');
+  const [boatType,       setBoatType]       = useState('motorized');
+  const [boatCapacity,   setBoatCapacity]   = useState('');
   const [password,       setPassword]       = useState('');
   const [confirmPwd,     setConfirmPwd]     = useState('');
   const [showPwd,        setShowPwd]        = useState(false);
@@ -97,12 +119,14 @@ export default function RegisterScreen({ navigation }) {
     if (!email.trim())          errs.email      = 'Email is required.';
     else if (!emailRx.test(email.trim())) errs.email = 'Invalid email address.';
     if (!phone.trim())          errs.phone      = 'Phone number is required.';
-    else if (!/^\d{10,15}$/.test(phone.replace(/\s/g, '')))
-                                errs.phone      = 'Enter a valid phone number.';
+    else if (!/^[6-9]\d{9}$/.test(phone.replace(/\s/g, '')))
+                  errs.phone      = 'Enter a valid 10-digit Indian phone number.';
     if (!password)              errs.password   = 'Password is required.';
     else if (password.length < 6) errs.password = 'At least 6 characters required.';
     if (!confirmPwd)            errs.confirmPwd = 'Please confirm your password.';
     else if (password !== confirmPwd) errs.confirmPwd = 'Passwords do not match.';
+    if (boatName.trim() && !boatReg.trim()) errs.boatReg = 'Boat registration number is required.';
+    if (boatReg.trim() && !boatName.trim()) errs.boatName = 'Boat name is required.';
 
     setFieldErrors(errs);
     return Object.keys(errs).length === 0;
@@ -114,12 +138,21 @@ export default function RegisterScreen({ navigation }) {
 
     try {
       setLoading(true);
-      await register({
+      const payload = {
         name:     fullName.trim(),
         email:    email.trim().toLowerCase(),
         phone:    phone.trim(),
         password,
-      });
+      };
+      if (boatName.trim() && boatReg.trim()) {
+        payload.boat = {
+          name: boatName.trim(),
+          registrationNo: boatReg.trim(),
+          type: boatType.trim() || 'motorized',
+          capacity: parseInt(boatCapacity, 10) || 1,
+        };
+      }
+      await register(payload);
       // Navigation handled by root navigator after auth state changes
     } catch (err) {
       const msg =
@@ -231,6 +264,46 @@ export default function RegisterScreen({ navigation }) {
               icon="call-outline"
               error={fieldErrors.phone}
               keyboardType="phone-pad"
+              returnKeyType="next"
+            />
+
+            <Text style={styles.sectionLabel}>{s.boatDetails}</Text>
+            <FormField
+              label={s.boatName}
+              placeholder={s.boatNamePh}
+              value={boatName}
+              onChangeText={(v) => { setBoatName(v); clearFieldError('boatName'); }}
+              icon="boat-outline"
+              error={fieldErrors.boatName}
+              autoCapitalize="words"
+              returnKeyType="next"
+            />
+            <FormField
+              label={s.boatReg}
+              placeholder={s.boatRegPh}
+              value={boatReg}
+              onChangeText={(v) => { setBoatReg(v); clearFieldError('boatReg'); }}
+              icon="document-text-outline"
+              error={fieldErrors.boatReg}
+              autoCapitalize="characters"
+              returnKeyType="next"
+            />
+            <FormField
+              label={s.boatType}
+              placeholder={s.boatTypePh}
+              value={boatType}
+              onChangeText={setBoatType}
+              icon="construct-outline"
+              autoCapitalize="none"
+              returnKeyType="next"
+            />
+            <FormField
+              label={s.boatCapacity}
+              placeholder={s.boatCapacityPh}
+              value={boatCapacity}
+              onChangeText={setBoatCapacity}
+              icon="people-outline"
+              keyboardType="number-pad"
               returnKeyType="next"
             />
 
@@ -520,6 +593,13 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  sectionLabel: {
+    color: C.secondary,
+    fontSize: 13,
+    fontWeight: '800',
+    marginTop: 4,
+    marginBottom: 8,
   },
   inputWrapper: {
     flexDirection: 'row',

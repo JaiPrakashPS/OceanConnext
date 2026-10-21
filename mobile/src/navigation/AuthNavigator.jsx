@@ -1,10 +1,10 @@
 import React from 'react';
-import { createStackNavigator } from '@react-navigation/stack';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
 import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
 
-const Stack = createStackNavigator();
+const Stack = createNativeStackNavigator();
 
 export default function AuthNavigator() {
   return (
@@ -12,9 +12,6 @@ export default function AuthNavigator() {
       initialRouteName="Login"
       screenOptions={{
         headerShown: false,
-        cardStyleInterpolator: ({ current: { progress } }) => ({
-          cardStyle: { opacity: progress },
-        }),
       }}
     >
       <Stack.Screen name="Login" component={LoginScreen} />

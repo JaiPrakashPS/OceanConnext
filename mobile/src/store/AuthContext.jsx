@@ -1,8 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import api from '../api/axios';
-import { ENDPOINTS } from '../constants/api';
 import { setLanguage } from '../i18n';
+import {
+  authenticateLocalUser,
+  createLocalUser,
+  getLocalUser,
+  saveLocalBoat,
+  saveLocalProfile,
+} from '../db/helpers';
 
 const AuthContext = createContext(null);
 
@@ -17,13 +22,14 @@ export const AuthProvider = ({ children }) => {
 
   const restoreSession = async () => {
     try {
-      const [storedUser, accessToken] = await AsyncStorage.multiGet(['user', 'accessToken']);
+      const [storedUser] = await AsyncStorage.multiGet(['user']);
       const parsedUser = storedUser[1] ? JSON.parse(storedUser[1]) : null;
+      const localUser = parsedUser ? getLocalUser(parsedUser.id) : null;
 
-      if (parsedUser && accessToken[1]) {
-        setUser(parsedUser);
-        if (parsedUser.preferredLanguage) {
-          await setLanguage(parsedUser.preferredLanguage);
+      if (localUser) {
+        setUser(localUser);
+        if (localUser.preferredLanguage) {
+          await setLanguage(localUser.preferredLanguage);
         }
       }
     } catch (_) {
@@ -33,14 +39,13 @@ export const AuthProvider = ({ children }) => {
   };
 
   const login = async (email, password) => {
-    const res = await api.post(ENDPOINTS.LOGIN, { email, password });
-    const { user: userData, accessToken, refreshToken } = res.data.data;
+    const userData = authenticateLocalUser(email, password);
+    if (!userData) {
+      throw new Error('Invalid email or password.');
+    }
 
-    await AsyncStorage.multiSet([
-      ['user', JSON.stringify(userData)],
-      ['accessToken', accessToken],
-      ['refreshToken', refreshToken],
-    ]);
+    saveLocalProfile(userData);
+    await AsyncStorage.setItem('user', JSON.stringify(userData));
 
     if (userData.preferredLanguage) {
       await setLanguage(userData.preferredLanguage);
@@ -51,21 +56,27 @@ export const AuthProvider = ({ children }) => {
   };
 
   const register = async (data) => {
-    const res = await api.post(ENDPOINTS.REGISTER, data);
-    const { user: userData, accessToken, refreshToken } = res.data.data;
-
-    await AsyncStorage.multiSet([
-      ['user', JSON.stringify(userData)],
-      ['accessToken', accessToken],
-      ['refreshToken', refreshToken],
-    ]);
+    let userData;
+    try {
+      userData = createLocalUser(data);
+    } catch (error) {
+      if (error?.message?.includes('UNIQUE constraint failed')) {
+        throw new Error('An account with this email already exists.');
+      }
+      throw error;
+    }
+    saveLocalProfile(userData);
+    if (data.boat) {
+      saveLocalBoat(data.boat);
+    }
+    await AsyncStorage.setItem('user', JSON.stringify(userData));
 
     setUser(userData);
     return userData;
   };
 
   const logout = async () => {
-    await AsyncStorage.multiRemove(['user', 'accessToken', 'refreshToken']);
+    await AsyncStorage.removeItem('user');
     setUser(null);
   };
 

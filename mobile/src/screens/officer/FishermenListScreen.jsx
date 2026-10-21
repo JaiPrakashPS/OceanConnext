@@ -6,6 +6,7 @@ import api from '../../api/axios';
 import { ENDPOINTS } from '../../constants/api';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/colors';
 import { useLanguage } from '../../store/LanguageContext';
+import { getLocalUsers } from '../../db/helpers';
 
 export default function FishermenListScreen({ navigation }) {
   const { t, lang } = useLanguage();
@@ -16,13 +17,12 @@ export default function FishermenListScreen({ navigation }) {
 
   const load = useCallback(async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
-    try {
-      const params = { role: 'fisherman', limit: 100 };
-      if (search) params.search = search;
-      const res = await api.get(ENDPOINTS.ADMIN_USERS, { params });
-      setFishermen(res.data.data || []);
-    } catch (e) { console.warn(e.message); }
-    finally { setLoading(false); setRefreshing(false); }
+    const query = search.toLowerCase();
+    setFishermen(getLocalUsers('fisherman').filter((item) =>
+      !query || item.name.toLowerCase().includes(query) || item.email.toLowerCase().includes(query)
+    ));
+    setLoading(false);
+    setRefreshing(false);
   }, [search]);
 
   useEffect(() => { load(); }, [load]);
@@ -61,7 +61,7 @@ export default function FishermenListScreen({ navigation }) {
         <FlatList
           data={fishermen}
           renderItem={renderItem}
-          keyExtractor={i => i._id}
+          keyExtractor={i => i._id || i.id}
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(true); }} tintColor={COLORS.primary} />}
           ListEmptyComponent={<View style={styles.empty}><Ionicons name="people-outline" size={48} color={COLORS.textMuted} /><Text style={styles.emptyText}>{lang === 'ta' ? 'மீனவர்கள் யாரும் காணப்படவில்லை' : 'No fishermen found'}</Text></View>}

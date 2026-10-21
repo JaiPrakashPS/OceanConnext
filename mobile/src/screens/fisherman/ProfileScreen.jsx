@@ -21,7 +21,7 @@ const INFO_ITEMS = [
 ];
 
 export default function ProfileScreen({ navigation }) {
-  const { user, logout, updateUser } = useAuth();
+  const { user, logout, updateUser, loading: authLoading } = useAuth();
   const { isConnected } = useNetwork();
   const { lang, changeLanguage } = useLanguage();
   
@@ -96,33 +96,25 @@ export default function ProfileScreen({ navigation }) {
   const loadProfile = useCallback(async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
     try {
-      if (isConnected) {
-        const [profileRes, boatsRes] = await Promise.all([
-          api.get(ENDPOINTS.MY_PROFILE),
-          api.get(ENDPOINTS.BOATS),
-        ]);
-        setProfile(profileRes.data.data);
-        const fetchedBoats = boatsRes.data.data || [];
-        setBoats(fetchedBoats);
-        cacheBoats(fetchedBoats); // Update SQLite cache
-      } else {
-        // Fetch offline details
-        const cached = getCachedBoats();
-        setBoats(cached || []);
-      }
-    } catch (e) {
-      console.warn('Profile load error:', e.message);
-      const cached = getCachedBoats();
-      setBoats(cached || []);
+      setProfile({ user, profile: {} });
+      setBoats(getCachedBoats() || []);
+    } catch {
+      setProfile({ user, profile: {} });
+      setBoats([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [isConnected]);
+  }, [isConnected, logout]);
 
   useEffect(() => {
-    loadProfile();
-  }, [loadProfile]);
+    // Wait for auth restore to complete and ensure a user is present before
+    // hitting protected endpoints. This avoids trying to refresh tokens when
+    // AsyncStorage hasn't been restored yet (causing "No refresh token").
+    if (!authLoading && user) {
+      loadProfile();
+    }
+  }, [loadProfile, authLoading, user]);
 
   const switchLang = async (newLang) => {
     await changeLanguage(newLang);

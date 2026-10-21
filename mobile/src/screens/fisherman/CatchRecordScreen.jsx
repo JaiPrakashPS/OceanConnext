@@ -78,12 +78,7 @@ export default function CatchRecordScreen({ navigation }) {
       setLoadingBoats(true);
       try {
         let list = [];
-        if (isConnected) {
-          const res = await api.get(ENDPOINTS.BOATS);
-          list = res.data.data || [];
-        } else {
-          list = getCachedBoats() || [];
-        }
+        list = getCachedBoats() || [];
         
         if (list.length === 0) {
           Alert.alert(
@@ -109,8 +104,7 @@ export default function CatchRecordScreen({ navigation }) {
           setBoats(list);
           setSelectedBoat(list[0]);
         }
-      } catch (err) {
-        console.warn('Fetch boats error in CatchRecord:', err);
+      } catch {
         const cached = getCachedBoats() || [];
         if (cached.length === 0) {
           Alert.alert(
@@ -212,31 +206,12 @@ export default function CatchRecordScreen({ navigation }) {
 
     setSubmitting(true);
     try {
-      if (isConnected) {
-        await api.post(ENDPOINTS.CATCHES, payload);
-        Alert.alert('✅ ' + t('catch.success'), t('catch.successMsg'), [
-          { text: t('common.done'), onPress: () => navigation.goBack() },
-        ]);
-      } else {
-        await saveCatchOffline(payload);
-        Alert.alert(
-          '📦 ' + t('catch.savedOfflineTitle'),
-          t('catch.savedOfflineMsg'),
-          [{ text: t('common.done'), onPress: () => navigation.goBack() }]
-        );
-      }
-    } catch (err) {
-      // Fallback: try offline save
-      try {
-        await saveCatchOffline(payload);
-        Alert.alert(
-          '📦 ' + t('catch.savedOfflineTitle'),
-          t('catch.savedOfflineFallback'),
-          [{ text: t('common.done'), onPress: () => navigation.goBack() }]
-        );
-      } catch {
-        Alert.alert(t('common.error'), t('catch.valError'));
-      }
+      await saveCatchOffline(payload);
+      Alert.alert('📦 ' + t('catch.savedOfflineTitle'), t('catch.savedOfflineMsg'), [
+        { text: t('common.done'), onPress: () => navigation.goBack() },
+      ]);
+    } catch {
+      Alert.alert(t('common.error'), t('catch.valError'));
     } finally {
       setSubmitting(false);
     }

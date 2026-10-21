@@ -18,10 +18,43 @@ export const getDatabase = () => {
 export const initDatabase = async () => {
   const database = getDatabase();
 
+  const ensureColumn = (table, column, definition) => {
+    const columns = database.getAllSync(`PRAGMA table_info(${table})`);
+    if (!columns.some((item) => item.name === column)) {
+      database.execSync(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    }
+  };
+
   database.execSync(`
     PRAGMA journal_mode = WAL;
     PRAGMA foreign_keys = ON;
   `);
+
+  // Local app accounts. The mobile app supports fishermen and officers only.
+  database.execSync(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY NOT NULL,
+      name TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL COLLATE NOCASE,
+      password TEXT NOT NULL,
+      phone TEXT,
+      role TEXT NOT NULL CHECK (role IN ('fisherman', 'officer')),
+      preferred_language TEXT DEFAULT 'ta',
+      is_active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
+
+  database.runSync(
+    `INSERT OR IGNORE INTO users (id, name, email, password, phone, role, preferred_language)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ['demo-officer', 'Demo Fisheries Officer', 'officer@kadalthunai.gov.in', 'Officer@1234', '9888888888', 'officer', 'ta']
+  );
+  database.runSync(
+    `INSERT OR IGNORE INTO users (id, name, email, password, phone, role, preferred_language)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ['demo-fisherman', 'Demo Fisherman', 'fisherman@kadalthunai.gov.in', 'Fisherman@1234', '9777777777', 'fisherman', 'ta']
+  );
 
   // Profile cache
   database.execSync(`
@@ -79,6 +112,7 @@ export const initDatabase = async () => {
       local_id INTEGER PRIMARY KEY AUTOINCREMENT,
       server_id TEXT,
       sync_status TEXT DEFAULT 'pending',
+      sync_error TEXT,
       species TEXT NOT NULL,
       abundance TEXT DEFAULT 'medium',
       lat REAL NOT NULL,
@@ -95,6 +129,7 @@ export const initDatabase = async () => {
       local_id INTEGER PRIMARY KEY AUTOINCREMENT,
       server_id TEXT,
       sync_status TEXT DEFAULT 'pending',
+      sync_error TEXT,
       species TEXT NOT NULL,
       species_tamil TEXT,
       quantity REAL DEFAULT 0,
@@ -117,7 +152,9 @@ export const initDatabase = async () => {
     CREATE TABLE IF NOT EXISTS sos_offline (
       local_id INTEGER PRIMARY KEY AUTOINCREMENT,
       server_id TEXT,
+      message_id TEXT,
       sync_status TEXT DEFAULT 'pending',
+      sync_error TEXT,
       lat REAL NOT NULL,
       lng REAL NOT NULL,
       accuracy REAL,
@@ -135,6 +172,7 @@ export const initDatabase = async () => {
       local_id INTEGER PRIMARY KEY AUTOINCREMENT,
       server_id TEXT,
       sync_status TEXT DEFAULT 'pending',
+      sync_error TEXT,
       category TEXT NOT NULL,
       title TEXT NOT NULL,
       description TEXT NOT NULL,
@@ -144,6 +182,12 @@ export const initDatabase = async () => {
       updated_at TEXT DEFAULT (datetime('now'))
     );
   `);
+
+  ensureColumn('catches_offline', 'sync_error', 'TEXT');
+  ensureColumn('sos_offline', 'sync_error', 'TEXT');
+  ensureColumn('sos_offline', 'message_id', 'TEXT');
+  ensureColumn('complaints_offline', 'sync_error', 'TEXT');
+  ensureColumn('fishing_zones_offline', 'sync_error', 'TEXT');
 
   // Government schemes cache
   database.execSync(`

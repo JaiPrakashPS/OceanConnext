@@ -2,9 +2,13 @@ import api from '../api/axios';
 import { ENDPOINTS } from '../constants/api';
 import {
   getPendingCatches, markCatchSynced,
+  markCatchFailed,
   getPendingSOS, markSOSSynced,
+  markSOSFailed,
   getPendingComplaints, markComplaintSynced,
+  markComplaintFailed,
   getPendingFishingZones, markFishingZoneSynced,
+  markFishingZoneFailed,
 } from './helpers';
 
 /**
@@ -26,7 +30,9 @@ export const syncAllPending = async () => {
         weight: c.weight,
         weightUnit: c.weight_unit,
         earnings: c.earnings,
-        location: c.catch_lat ? { lat: c.catch_lat, lng: c.catch_lng, name: c.catch_location_name } : null,
+        location: c.catch_location_name || c.catch_lat != null || c.catch_lng != null
+          ? { lat: c.catch_lat ?? null, lng: c.catch_lng ?? null, name: c.catch_location_name || null }
+          : null,
         boatId: c.boat_id,
         notes: c.notes,
         catchDate: c.catch_date,
@@ -37,6 +43,8 @@ export const syncAllPending = async () => {
         if (r.success) {
           markCatchSynced(parseInt(r.localId), r.serverId);
           results.catches++;
+        } else {
+          markCatchFailed(parseInt(r.localId), r.error);
         }
       }
     }
@@ -46,6 +54,7 @@ export const syncAllPending = async () => {
     if (pendingSOS.length > 0) {
       const mapped = pendingSOS.map((s) => ({
         localId: s.local_id.toString(),
+        messageId: s.message_id || `offline-sos-${s.local_id}`,
         location: { lat: s.lat, lng: s.lng, accuracy: s.accuracy },
         message: s.message,
         emergencyType: s.emergency_type,
@@ -57,6 +66,8 @@ export const syncAllPending = async () => {
         if (r.success) {
           markSOSSynced(parseInt(r.localId), r.serverId);
           results.sos++;
+        } else {
+          markSOSFailed(parseInt(r.localId), r.error);
         }
       }
     }
@@ -77,6 +88,8 @@ export const syncAllPending = async () => {
         if (r.success) {
           markComplaintSynced(parseInt(r.localId), r.serverId);
           results.complaints++;
+        } else {
+          markComplaintFailed(parseInt(r.localId), r.error);
         }
       }
     }
@@ -97,6 +110,8 @@ export const syncAllPending = async () => {
         if (r.success) {
           markFishingZoneSynced(parseInt(r.localId), r.serverId);
           results.fishingZones++;
+        } else {
+          markFishingZoneFailed(parseInt(r.localId), r.error);
         }
       }
     }

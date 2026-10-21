@@ -152,17 +152,9 @@ export default function WeatherScreen() {
     else setLoading(true);
 
     try {
-      if (isConnected && location) {
-        const res = await api.get(ENDPOINTS.WEATHER, {
-          params: { lat: location.lat, lon: location.lon },
-        });
-        const weatherObj = res.data?.data || res.data || MOCK_WEATHER;
-        await cacheWeather(weatherObj);
-        setWeather(weatherObj);
-        setIsOffline(false);
-      } else {
-        throw new Error('offline');
-      }
+      const cached = await getCachedWeather();
+      setWeather(cached || MOCK_WEATHER);
+      setIsOffline(true);
     } catch {
       try {
         const cached = await getCachedWeather();

@@ -6,6 +6,7 @@ import api from '../../api/axios';
 import { ENDPOINTS } from '../../constants/api';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/colors';
 import { useLanguage } from '../../store/LanguageContext';
+import { getAllCatches } from '../../db/helpers';
 
 export default function CatchMonitorScreen({ navigation }) {
   const { t, lang } = useLanguage();
@@ -17,19 +18,22 @@ export default function CatchMonitorScreen({ navigation }) {
 
   const load = useCallback(async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
-    try {
-      const params = { limit: 100 };
-      if (search) params.species = search;
-      const res = await api.get(ENDPOINTS.CATCHES, { params });
-      const data = res.data.data || [];
-      setCatches(data);
-      setStats({
-        totalWeight: data.reduce((s, c) => s + (c.weight || 0), 0),
-        totalEarnings: data.reduce((s, c) => s + (c.earnings || 0), 0),
-        count: data.length,
-      });
-    } catch (e) { console.warn(e.message); }
-    finally { setLoading(false); setRefreshing(false); }
+    const local = getAllCatches(100).filter((item) =>
+      !search || item.species.toLowerCase().includes(search.toLowerCase())
+    );
+    setCatches(local.map((item) => ({
+      ...item,
+      _id: `local-catch-${item.local_id}`,
+      catchDate: item.catch_date,
+      weightUnit: item.weight_unit,
+    })));
+    setStats({
+      totalWeight: local.reduce((sum, item) => sum + (item.weight || 0), 0),
+      totalEarnings: local.reduce((sum, item) => sum + (item.earnings || 0), 0),
+      count: local.length,
+    });
+    setLoading(false);
+    setRefreshing(false);
   }, [search]);
 
   useEffect(() => { load(); }, []);
@@ -91,7 +95,7 @@ export default function CatchMonitorScreen({ navigation }) {
         <FlatList
           data={catches}
           renderItem={renderItem}
-          keyExtractor={i => i._id}
+          keyExtractor={i => i._id || String(i.local_id)}
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(true); }} tintColor={COLORS.primary} />}
           ListEmptyComponent={<View style={styles.empty}><Ionicons name="fish-outline" size={48} color={COLORS.textMuted} /><Text style={styles.emptyText}>{t('catch.noCatches') || 'No catches found'}</Text></View>}

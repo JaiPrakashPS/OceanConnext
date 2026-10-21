@@ -6,6 +6,7 @@ import api from '../../api/axios';
 import { ENDPOINTS } from '../../constants/api';
 import { useLanguage } from '../../store/LanguageContext';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/colors';
+import { getCachedNotifications, markNotificationRead } from '../../db/helpers';
 
 const TYPE_CONFIG = {
   weather: { icon: 'partly-sunny', color: COLORS.info },
@@ -24,20 +25,23 @@ export default function NotificationsScreen({ navigation }) {
 
   const load = useCallback(async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
-    try {
-      const res = await api.get(ENDPOINTS.NOTIFICATIONS, { params: { limit: 50 } });
-      setNotifications(res.data.data || []);
-    } catch (e) { console.warn(e.message); }
-    finally { setLoading(false); setRefreshing(false); }
+    setNotifications(getCachedNotifications().map((item) => ({
+      ...item,
+      _id: item.server_id,
+      titleTamil: item.title_tamil,
+      bodyTamil: item.body_tamil,
+      isRead: Boolean(item.is_read),
+      createdAt: item.created_at,
+    })));
+    setLoading(false);
+    setRefreshing(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
   const markRead = async (id) => {
-    try {
-      await api.put(ENDPOINTS.NOTIFICATION_READ(id));
-      setNotifications(prev => prev.map(n => n._id === id ? { ...n, isRead: true } : n));
-    } catch (_) {}
+    markNotificationRead(id);
+    setNotifications(prev => prev.map(n => n._id === id ? { ...n, isRead: true } : n));
   };
 
   const unreadCount = notifications.filter(n => !n.isRead).length;

@@ -1,6 +1,6 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createStackNavigator } from '@react-navigation/stack';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { COLORS, SPACING } from '../constants/colors';
@@ -25,7 +25,7 @@ import ProfileScreen from '../screens/fisherman/ProfileScreen';
 import NotificationsScreen from '../screens/fisherman/NotificationsScreen';
 
 const Tab = createBottomTabNavigator();
-const Stack = createStackNavigator();
+const Stack = createNativeStackNavigator();
 
 function HomeStack() {
   return (
@@ -55,6 +55,7 @@ function MapStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="FishingZone" component={FishingZoneScreen} />
       <Stack.Screen name="Compass" component={CompassScreen} />
+      <Stack.Screen name="OfflineMaps" component={OfflineMapsScreen} />
     </Stack.Navigator>
   );
 }
@@ -64,7 +65,6 @@ function MarketStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="MarketPrice" component={MarketPriceScreen} />
       <Stack.Screen name="Complaint" component={ComplaintScreen} />
-      <Stack.Screen name="OfflineMaps" component={OfflineMapsScreen} />
     </Stack.Navigator>
   );
 }

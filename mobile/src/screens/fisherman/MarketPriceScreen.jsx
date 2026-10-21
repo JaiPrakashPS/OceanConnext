@@ -129,16 +129,10 @@ export default function MarketPriceScreen({ navigation }) {
     else setLoading(true);
 
     try {
-      if (isConnected) {
-        const response = await api.get(ENDPOINTS.MARKET_PRICES);
-        const data = response.data?.data || response.data || [];
-        const normalized = data.map(normalizePrice);
-        setPrices(normalized);
-        await cacheMarketPrices(data);
-        setIsOffline(false);
-      } else {
-        throw new Error('offline');
-      }
+      const cached = await getCachedMarketPrices();
+      const normalized = (cached || []).map(normalizePrice);
+      setPrices(normalized);
+      setIsOffline(true);
     } catch (err) {
       try {
         const cached = await getCachedMarketPrices();

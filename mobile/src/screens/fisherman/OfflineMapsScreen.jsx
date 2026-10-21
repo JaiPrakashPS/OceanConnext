@@ -13,13 +13,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import MapView, { UrlTile, LocalTile } from 'react-native-maps';
+import MapView, { UrlTile, LocalTile, Polyline } from 'react-native-maps';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNetwork } from '../../store/NetworkContext';
 import { useLanguage } from '../../store/LanguageContext';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/colors';
+import { checkGeofenceStatus, MARITIME_BOUNDARY, MARITIME_BOUNDARY_IS_SAMPLE } from '../../utils/geofence';
 
 const { width } = Dimensions.get('window');
 
@@ -109,6 +110,8 @@ export default function OfflineMapsScreen({ navigation }) {
   const [forceOffline, setForceOffline] = useState(false);
   const [cacheSize, setCacheSize] = useState('0 MB');
   const [userLocation, setUserLocation] = useState(null);
+  const [geofenceAlert, setGeofenceAlert] = useState(null);
+  const locationSub = useRef(null);
 
   const tilesDir = `${FileSystem.documentDirectory}tiles/`;
   const pathTemplate = `${tilesDir}{z}/{x}/{y}.png`;
@@ -124,21 +127,33 @@ export default function OfflineMapsScreen({ navigation }) {
   useEffect(() => {
     checkStatus();
     requestLocationPermission();
+    return () => {
+      if (locationSub.current) locationSub.current.remove();
+    };
   }, []);
 
   const requestLocationPermission = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status === 'granted') {
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        setUserLocation(loc.coords);
-        // Pan map preview to user location
+        const initialLoc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        setUserLocation(initialLoc.coords);
+        setGeofenceAlert(checkGeofenceStatus(initialLoc.coords));
+
         mapRef.current?.animateToRegion({
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
+          latitude: initialLoc.coords.latitude,
+          longitude: initialLoc.coords.longitude,
           latitudeDelta: 1.5,
           longitudeDelta: 1.5,
         }, 1500);
+
+        locationSub.current = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 10 },
+          (loc) => {
+            setUserLocation(loc.coords);
+            setGeofenceAlert(checkGeofenceStatus(loc.coords));
+          }
+        );
       }
     } catch (err) {
       console.warn('Location request failed:', err);
@@ -330,6 +345,13 @@ export default function OfflineMapsScreen({ navigation }) {
                 tileSize={256}
               />
             )}
+            
+            <Polyline
+              coordinates={MARITIME_BOUNDARY}
+              strokeColor="#EF4444"
+              strokeWidth={3}
+              lineDashPattern={[5, 5]}
+            />
           </MapView>
           {isMapOffline && (
             <View style={styles.mapBadge}>
@@ -343,6 +365,29 @@ export default function OfflineMapsScreen({ navigation }) {
                   ? 'ஆஃப்லைன் (வரைபடம் இல்லை)'
                   : 'OFFLINE (NO MAP DATA)'}
               </Text>
+            </View>
+          )}
+
+          {MARITIME_BOUNDARY_IS_SAMPLE && (
+            <View style={styles.boundarySampleBadge}>
+              <Ionicons name="information-circle-outline" size={13} color="#FDE68A" />
+              <Text style={styles.boundarySampleText}>Sample boundary - not official</Text>
+            </View>
+          )}
+
+          {geofenceAlert && geofenceAlert.status !== 'SAFE' && (
+            <View style={[styles.geofenceAlert, geofenceAlert.status === 'OUTSIDE_RESTRICTED' ? styles.alertDanger : styles.alertWarning]}>
+              <Ionicons name="warning" size={24} color="#fff" />
+              <View style={{ marginLeft: 8, flex: 1 }}>
+                <Text style={styles.geofenceAlertTitle}>
+                  {geofenceAlert.status === 'OUTSIDE_RESTRICTED' ? 
+                    (lang === 'ta' ? 'எச்சரிக்கை: தடைசெய்யப்பட்ட பகுதி!' : 'WARNING: RESTRICTED AREA!') : 
+                    (lang === 'ta' ? 'எச்சரிக்கை: எல்லை அருகில்!' : 'WARNING: NEAR BOUNDARY!')}
+                </Text>
+                <Text style={styles.geofenceAlertDesc}>
+                  {lang === 'ta' ? `எல்லைக்கு தூரம்: ${geofenceAlert.distance.toFixed(1)} km` : `Distance to boundary: ${geofenceAlert.distance.toFixed(1)} km`}
+                </Text>
+              </View>
             </View>
           )}
         </View>
@@ -538,6 +583,19 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   mapBadgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
+  boundarySampleBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(120, 53, 15, 0.9)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  boundarySampleText: { color: '#FDE68A', fontSize: 10, fontWeight: '800' },
   panel: {
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS.lg,
@@ -598,4 +656,20 @@ const styles = StyleSheet.create({
   toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   toggleLabel: { fontSize: 14, fontWeight: '600', color: COLORS.textPrimary, marginBottom: 2 },
   toggleDesc: { fontSize: 11, color: COLORS.textSecondary, lineHeight: 16 },
+  geofenceAlert: {
+    position: 'absolute',
+    bottom: 12,
+    left: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: RADIUS.md,
+    ...SHADOWS.md,
+  },
+  alertDanger: { backgroundColor: 'rgba(239, 68, 68, 0.95)' },
+  alertWarning: { backgroundColor: 'rgba(245, 158, 11, 0.95)' },
+  geofenceAlertTitle: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  geofenceAlertDesc: { color: '#fff', fontSize: 12, fontWeight: '600' },
 });
+

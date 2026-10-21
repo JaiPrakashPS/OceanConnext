@@ -7,6 +7,7 @@ import api from '../../api/axios';
 import { ENDPOINTS } from '../../constants/api';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/colors';
 import { useLanguage } from '../../store/LanguageContext';
+import { getAllCatches, getPendingSOS } from '../../db/helpers';
 
 const W = Dimensions.get('window').width - SPACING.md * 2;
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -30,15 +31,21 @@ export default function AnalyticsScreen({ navigation }) {
 
   useEffect(() => {
     const load = async () => {
-      try {
-        const [c, s] = await Promise.all([
-          api.get(ENDPOINTS.ANALYTICS_CATCHES, { params: { year: new Date().getFullYear() } }),
-          api.get(ENDPOINTS.ANALYTICS_SOS),
-        ]);
-        setCatchData(c.data.data);
-        setSosData(s.data.data);
-      } catch (e) { console.warn(e.message); }
-      finally { setLoading(false); }
+      const catches = getAllCatches(1000);
+      const monthlyStats = catches.reduce((items, item) => {
+        const month = new Date(item.catch_date).getMonth() + 1;
+        const existing = items.find((entry) => entry._id.month === month);
+        if (existing) {
+          existing.catchCount += 1;
+          existing.totalEarnings += item.earnings || 0;
+        } else {
+          items.push({ _id: { month }, catchCount: 1, totalEarnings: item.earnings || 0 });
+        }
+        return items;
+      }, []);
+      setCatchData({ monthlyStats, topSpecies: [] });
+      setSosData({ byStatus: [{ _id: 'pending', count: getPendingSOS().length }], byType: [] });
+      setLoading(false);
     };
     load();
   }, []);

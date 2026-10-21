@@ -11,6 +11,7 @@ import { ENDPOINTS } from '../../constants/api';
 import { useLanguage } from '../../store/LanguageContext';
 import { useNetwork } from '../../store/NetworkContext';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/colors';
+import { getAllLocalBoats } from '../../db/helpers';
 
 const BOAT_TYPE_COLORS = {
   mechanized: COLORS.primary,
@@ -44,11 +45,12 @@ export default function NearbyBoatsScreen({ navigation }) {
           const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
           setUserLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
         }
-        if (isConnected) {
-          const res = await api.get(ENDPOINTS.BOATS, { params: { limit: 100 } });
-          setBoats(res.data.data || []);
-        }
-      } catch (e) { console.warn(e.message); }
+        setBoats(getAllLocalBoats().map((boat) => ({
+          ...boat,
+          registrationNo: boat.registration_no,
+          isActive: Boolean(boat.is_active),
+        })));
+      } catch {}
       finally { setLoading(false); }
     };
     init();

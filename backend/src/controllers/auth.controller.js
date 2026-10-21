@@ -3,16 +3,20 @@ const crypto = require('crypto');
 const User = require('../models/User');
 const FishermenProfile = require('../models/FishermenProfile');
 const FisheriesOfficer = require('../models/FisheriesOfficer');
+const Boat = require('../models/Boat');
 const { generateTokens, verifyRefreshToken } = require('../utils/jwt');
 const asyncHandler = require('../middleware/asyncHandler');
 
 // POST /api/v1/auth/register
 const register = asyncHandler(async (req, res) => {
-  const { name, email, password, phone, role, preferredLanguage } = req.body;
+  const { name, email, password, phone, role, preferredLanguage, boat } = req.body;
 
   // Only allow fisherman self-registration; officers created by admin
   const allowedRoles = ['fisherman'];
   const userRole = allowedRoles.includes(role) ? role : 'fisherman';
+  if (userRole === 'fisherman' && (boat?.name || boat?.registrationNo) && (!boat.name || !boat.registrationNo)) {
+    return res.status(400).json({ success: false, message: 'Boat name and registration number are both required.' });
+  }
 
   const user = await User.create({
     name,
@@ -26,6 +30,16 @@ const register = asyncHandler(async (req, res) => {
   // Create profile for fisherman
   if (userRole === 'fisherman') {
     await FishermenProfile.create({ userId: user._id });
+    if (boat?.name || boat?.registrationNo) {
+      await Boat.create({
+        ownerId: user._id,
+        name: boat.name.trim(),
+        registrationNo: boat.registrationNo.trim(),
+        type: boat.type || 'motorized',
+        capacity: Number(boat.capacity) || 1,
+        engineNo: boat.engineNo?.trim() || undefined,
+      });
+    }
   }
 
   const tokens = generateTokens({ id: user._id, role: user.role });

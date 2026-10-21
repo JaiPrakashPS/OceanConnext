@@ -5,7 +5,7 @@ const { paginate, paginateMeta } = require('../utils/paginate');
 const { sendTopicNotification } = require('../services/notification.stub');
 
 const createSOS = asyncHandler(async (req, res) => {
-  let { location, message, emergencyType, emergency_type, latitude, longitude, boatId, localId } = req.body;
+  let { location, message, emergencyType, emergency_type, latitude, longitude, boatId, localId, messageId } = req.body;
 
   // Map flat latitude/longitude to nested location object
   if (!location && (latitude !== undefined || longitude !== undefined)) {
@@ -23,6 +23,7 @@ const createSOS = asyncHandler(async (req, res) => {
 
   const sos = await SosRequest.create({
     fishermenId: req.user._id,
+    messageId: messageId || localId,
     boatId: boatId || null,
     location,
     message: message || 'Emergency! Need immediate assistance.',
@@ -72,13 +73,16 @@ const syncSOS = asyncHandler(async (req, res) => {
         finalEmergencyType = 'boat_breakdown';
       }
 
-      const saved = await SosRequest.create({
-        ...record,
-        location,
-        emergencyType: finalEmergencyType,
-        fishermenId: req.user._id,
-        syncSource: 'local',
-      });
+      const existing = record.localId
+        ? await SosRequest.findOne({ fishermenId: req.user._id, localId: record.localId })
+        : null;
+      const saved = existing || await SosRequest.create({
+          ...record,
+          location,
+          emergencyType: finalEmergencyType,
+          fishermenId: req.user._id,
+          syncSource: 'local',
+        });
       results.push({ localId: record.localId, serverId: saved._id, success: true });
     } catch (err) {
       results.push({ localId: record.localId, success: false, error: err.message });
