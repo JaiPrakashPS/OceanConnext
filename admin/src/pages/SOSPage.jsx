@@ -3,11 +3,11 @@ import api from '../api/axios';
 import styles from './DataPage.module.css';
 
 const STATUS_COLORS = {
-  pending:      { bg: 'rgba(239,68,68,0.15)',    color: '#EF4444', label: 'Pending' },
-  acknowledged: { bg: 'rgba(245,158,11,0.15)',   color: '#F59E0B', label: 'Acknowledged' },
-  dispatched:   { bg: 'rgba(59,130,246,0.15)',   color: '#3B82F6', label: 'Dispatched' },
-  resolved:     { bg: 'rgba(16,185,129,0.15)',   color: '#10B981', label: 'Resolved' },
-  false_alarm:  { bg: 'rgba(100,116,139,0.15)',  color: '#64748B', label: 'False Alarm' },
+  pending:      { bg: '#fef2f2', color: '#dc2626', border: '#fecaca', label: 'Pending' },
+  acknowledged: { bg: '#fffbeb', color: '#d97706', border: '#fde68a', label: 'Acknowledged' },
+  dispatched:   { bg: '#eff6ff', color: '#0284c7', border: '#bfdbfe', label: 'Dispatched' },
+  resolved:     { bg: '#ecfdf5', color: '#059669', border: '#a7f3d0', label: 'Resolved' },
+  false_alarm:  { bg: '#f1f5f9', color: '#64748b', border: '#e2e8f0', label: 'False Alarm' },
 };
 
 const EMERGENCY_ICONS = {
@@ -25,25 +25,29 @@ const timeAgo = (d) => {
 };
 
 export default function SOSPage() {
-  const [records, setRecords]       = useState([]);
-  const [loading, setLoading]       = useState(true);
+  const [records, setRecords]           = useState([]);
+  const [loading, setLoading]           = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
-  const [updating, setUpdating]     = useState(null);
-  const [page, setPage]             = useState(1);
-  const [total, setTotal]           = useState(0);
+  const [updating, setUpdating]         = useState(null);
+  const [page, setPage]                 = useState(1);
+  const [total, setTotal]               = useState(0);
+  const [feedback, setFeedback]         = useState({ message: '', type: '' });
+  const [error, setError]               = useState('');
   const LIMIT = 20;
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
       const params = { page, limit: LIMIT };
       if (statusFilter !== 'all') params.status = statusFilter;
       const res = await api.get('/sos', { params });
       const data = res.data;
-      setRecords(data.data || []);
-      setTotal(data.pagination?.total || 0);
+      setRecords(data?.data || []);
+      setTotal(data?.pagination?.total || 0);
     } catch (e) {
       console.error(e);
+      setError(e.response?.data?.message || 'Unable to retrieve SOS distress records. Please verify connection.');
     } finally {
       setLoading(false);
     }
@@ -53,11 +57,20 @@ export default function SOSPage() {
 
   const updateStatus = async (id, newStatus) => {
     setUpdating(id);
+    setFeedback({ message: '', type: '' });
     try {
-      await api.patch(`/sos/${id}/status`, { status: newStatus });
+      await api.put(`/sos/${id}/status`, { status: newStatus });
+      setFeedback({
+        message: `Distress alert status updated to "${newStatus.replace('_', ' ').toUpperCase()}".`,
+        type: 'success',
+      });
       load();
+      setTimeout(() => setFeedback({ message: '', type: '' }), 4000);
     } catch (e) {
-      alert('Failed to update status');
+      setFeedback({
+        message: e.response?.data?.message || 'Failed to update SOS status. Please try again.',
+        type: 'error',
+      });
     } finally {
       setUpdating(null);
     }
@@ -69,11 +82,24 @@ export default function SOSPage() {
     <div className={styles.page}>
       <div className={styles.pageHeader}>
         <div>
-          <h1 className={styles.pageTitle}>🆘 SOS Alert Monitor</h1>
-          <p className={styles.pageSubtitle}>{total} total SOS requests · Real-time monitoring</p>
+          <h1 className={styles.pageTitle}>🆘 SOS Emergency Monitor</h1>
+          <p className={styles.pageSubtitle}>{total} total distress calls · Real-time maritime safety response</p>
         </div>
-        <button className="btn btn-ghost btn-sm" onClick={load}>↻ Refresh</button>
+        <button className="btn btn-ghost btn-sm" onClick={load}>↻ Refresh Feed</button>
       </div>
+
+      {feedback.message && (
+        <div className={`alert-banner ${feedback.type === 'error' ? 'alert-error' : 'alert-success'}`}>
+          <span>{feedback.type === 'error' ? '⚠️' : '✅'} {feedback.message}</span>
+        </div>
+      )}
+
+      {error && (
+        <div className="alert-banner alert-error">
+          <span>⚠️ {error}</span>
+          <button className="btn btn-sm btn-ghost" onClick={load} style={{ marginLeft: 'auto' }}>Retry</button>
+        </div>
+      )}
 
       {/* Status Tabs */}
       <div className={styles.tabRow}>
@@ -83,27 +109,32 @@ export default function SOSPage() {
             className={`${styles.tab} ${statusFilter === t ? styles.tabActive : ''}`}
             onClick={() => { setStatusFilter(t); setPage(1); }}
           >
-            {t === 'all' ? 'All' : STATUS_COLORS[t]?.label || t}
+            {t === 'all' ? 'All Alerts' : STATUS_COLORS[t]?.label || t}
             {t === 'pending' && <span className={styles.dangerDot} />}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <div className="loading-wrap"><div className="spinner" /></div>
+        <div className="loading-wrap">
+          <div className="spinner" />
+          <span>Monitoring distress channels...</span>
+        </div>
       ) : records.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-icon">✅</div>
-          <h2 className="empty-title">No SOS records found</h2>
+          <div className="empty-icon">🛡️</div>
+          <h2 className="empty-title">No SOS Alerts Found</h2>
           <p className="empty-desc">
-            {statusFilter === 'pending' ? 'All alerts have been addressed.' : 'No records match this filter.'}
+            {statusFilter === 'pending' ? 'All active emergency alerts have been attended to.' : 'No alerts match this filter.'}
           </p>
         </div>
       ) : (
         <div className={styles.sosGrid}>
           {records.map(item => {
             const cfg = STATUS_COLORS[item.status] || STATUS_COLORS.pending;
-            const coords = item.location?.coordinates;
+            const lat = item.location?.lat;
+            const lng = item.location?.lng;
+
             return (
               <div key={item._id} className={styles.sosCard} style={{ borderLeftColor: cfg.color }}>
                 <div className={styles.sosCardTop}>
@@ -111,28 +142,33 @@ export default function SOSPage() {
                     <span className={styles.sosEmIcon}>{EMERGENCY_ICONS[item.emergencyType] || '🆘'}</span>
                     <div>
                       <div className={styles.sosType}>{item.emergencyType?.replace(/_/g, ' ') || 'Emergency'}</div>
-                      <div className={styles.sosUser}>{item.userId?.name || 'Unknown Fisherman'}</div>
+                      <div className={styles.sosUser}>
+                        {item.fishermenId?.name || item.userId?.name || 'Unknown Fisherman'} · {item.fishermenId?.phone || ''}
+                      </div>
                     </div>
                   </div>
-                  <span className={styles.sosBadge} style={{ background: cfg.bg, color: cfg.color }}>
+                  <span
+                    className={styles.sosBadge}
+                    style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}
+                  >
                     {cfg.label}
                   </span>
                 </div>
 
-                {item.description && (
-                  <p className={styles.sosDesc}>{item.description}</p>
+                {(item.message || item.description) && (
+                  <p className={styles.sosDesc}>{item.message || item.description}</p>
                 )}
 
                 <div className={styles.sosMeta}>
-                  <span>🕐 {timeAgo(item.createdAt)}</span>
-                  {coords && (
+                  <span>🕒 {timeAgo(item.createdAt)}</span>
+                  {lat && lng && (
                     <a
-                      href={`https://maps.google.com/?q=${coords[1]},${coords[0]}`}
+                      href={`https://maps.google.com/?q=${lat},${lng}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className={styles.mapsLink}
                     >
-                      📍 View Location
+                      📍 Open GPS ({Number(lat).toFixed(3)}, {Number(lng).toFixed(3)})
                     </a>
                   )}
                 </div>
@@ -142,7 +178,7 @@ export default function SOSPage() {
                   <div className={styles.sosActions}>
                     <button
                       className="btn btn-sm btn-ghost"
-                      style={{ color: '#F59E0B', borderColor: '#F59E0B33' }}
+                      style={{ color: '#d97706', borderColor: '#fde68a' }}
                       disabled={updating === item._id}
                       onClick={() => updateStatus(item._id, 'acknowledged')}
                     >
@@ -150,7 +186,7 @@ export default function SOSPage() {
                     </button>
                     <button
                       className="btn btn-sm btn-ghost"
-                      style={{ color: '#64748B' }}
+                      style={{ color: '#64748b' }}
                       disabled={updating === item._id}
                       onClick={() => updateStatus(item._id, 'false_alarm')}
                     >
@@ -161,12 +197,11 @@ export default function SOSPage() {
                 {item.status === 'acknowledged' && (
                   <div className={styles.sosActions}>
                     <button
-                      className="btn btn-sm btn-ghost"
-                      style={{ color: '#3B82F6', borderColor: '#3B82F633' }}
+                      className="btn btn-sm btn-primary"
                       disabled={updating === item._id}
                       onClick={() => updateStatus(item._id, 'dispatched')}
                     >
-                      🚁 Dispatch
+                      🚤 Dispatch Coastguard / Team
                     </button>
                   </div>
                 )}
@@ -177,7 +212,7 @@ export default function SOSPage() {
                       disabled={updating === item._id}
                       onClick={() => updateStatus(item._id, 'resolved')}
                     >
-                      ✅ Mark Resolved
+                      ✅ Mark Incident Resolved
                     </button>
                   </div>
                 )}
@@ -191,7 +226,7 @@ export default function SOSPage() {
       {total > LIMIT && (
         <div className="pagination">
           <span className="pagination-info">
-            Showing {(page - 1) * LIMIT + 1}–{Math.min(page * LIMIT, total)} of {total}
+            Showing {(page - 1) * LIMIT + 1}–{Math.min(page * LIMIT, total)} of {total} distress records
           </span>
           <div className="pagination-btns">
             <button className="page-btn" disabled={page === 1} onClick={() => setPage(p => p - 1)}>← Prev</button>

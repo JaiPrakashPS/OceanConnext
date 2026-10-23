@@ -28,7 +28,6 @@ const NAV_GROUPS = [
     section: 'Resources',
     items: [
       { to: '/schemes', icon: '📜', label: 'Gov. Schemes' },
-      { to: '/prices', icon: '💰', label: 'Fish Prices' },
       { to: '/notifications', icon: '🔔', label: 'Notifications' },
     ],
   },
@@ -41,34 +40,35 @@ const NAV_GROUPS = [
 ];
 
 const PAGE_TITLES = {
-  '/dashboard': 'Dashboard',
+  '/dashboard': 'Dashboard Overview',
   '/users': 'Fishermen Management',
   '/officers': 'Officer Management',
   '/sos': 'SOS Alert Monitor',
   '/complaints': 'Complaint Resolution',
   '/schemes': 'Government Schemes',
-  '/prices': 'Fish Market Prices',
   '/notifications': 'Broadcast Notifications',
-  '/audit-logs': 'Audit Logs',
+  '/audit-logs': 'System Audit Logs',
 };
 
 export default function Layout() {
   const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const location = useLocation();
-  const currentTitle = PAGE_TITLES[location.pathname] || 'Admin Panel';
+  const currentTitle = PAGE_TITLES[location.pathname] || 'Ocean Connect Admin';
 
   return (
     <div className={styles.shell}>
-      {/* Sidebar */}
+      {/* Sidebar (Deep Ocean Blue 30% anchor) */}
       <aside className={`${styles.sidebar} ${sidebarOpen ? styles.open : styles.collapsed}`}>
         {/* Brand */}
         <div className={styles.brand}>
-          <span className={styles.brandIcon}>🎣</span>
+          <div className={styles.brandIconWrapper}>
+            <span className={styles.brandIcon}>🌊</span>
+          </div>
           {sidebarOpen && (
-            <div>
-              <div className={styles.brandName}>KadalThunai</div>
-              <div className={styles.brandSub}>கடல் துணை</div>
+            <div className={styles.brandText}>
+              <div className={styles.brandName}>Ocean Connect</div>
+              <div className={styles.brandSub}>Maritime Portal</div>
             </div>
           )}
         </div>
@@ -101,19 +101,19 @@ export default function Layout() {
             <div className={styles.userInfo}>
               <div className={styles.userAvatar}>{(user?.name || 'A')[0].toUpperCase()}</div>
               <div style={{ minWidth: 0 }}>
-                <div className={styles.userName}>{user?.name}</div>
-                <div className={styles.userRole}>Administrator</div>
+                <div className={styles.userName}>{user?.name || 'Administrator'}</div>
+                <div className={styles.userRole}>System Admin</div>
               </div>
             </div>
           )}
           <button className={styles.logoutBtn} onClick={logout} title="Logout">
-            <span>🚪</span>
-            {sidebarOpen && <span>Logout</span>}
+            <span style={{ fontSize: 16 }}>🚪</span>
+            {sidebarOpen && <span>Sign Out</span>}
           </button>
         </div>
       </aside>
 
-      {/* Main content */}
+      {/* Main content (70% clean white workspace) */}
       <div className={styles.main}>
         {/* Topbar */}
         <header className={styles.topbar}>
@@ -122,15 +122,18 @@ export default function Layout() {
           </button>
           <h1 className={styles.pageTitle}>{currentTitle}</h1>
           <div className={styles.topbarRight}>
-            <div className={styles.statusDot} title="Backend connected" />
-            <span className={styles.envBadge}>கடல் துணை</span>
+            <div className={styles.statusIndicator}>
+              <div className={styles.statusDot} title="System active" />
+              <span className={styles.statusText}>Live</span>
+            </div>
+            <span className={styles.envBadge}>Ocean Connect</span>
           </div>
         </header>
 
         {/* Page content */}
-        <div className={styles.content}>
+        <main className={styles.content}>
           <Outlet />
-        </div>
+        </main>
       </div>
     </div>
   );

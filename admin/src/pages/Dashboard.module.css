@@ -3,53 +3,92 @@
   max-width: 100%;
 }
 
-.loading {
+.loadingWrap {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 400px;
-  color: var(--text-secondary);
-  font-size: 16px;
+  min-height: 400px;
+  gap: 16px;
 }
 
-.title { font-size: 24px; font-weight: 800; color: var(--text); margin-bottom: 4px; }
-.subtitle { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
+.loadingText {
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.headerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.5px;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
 
 /* ── Stats Grid ── */
 .statsGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
   gap: 16px;
   margin-bottom: 24px;
   width: 100%;
 }
 
 .statCard {
-  background: var(--surface);
+  background: #ffffff;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 20px 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   text-align: center;
-  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
-.statCard:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+.statCard:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
 
 .statIcon {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 22px;
 }
 
-.statValue { font-size: 28px; font-weight: 800; }
-.statLabel { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+.statValue {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  line-height: 1;
+}
+
+.statLabel {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
 
 /* ── Charts ── */
 .chartsRow {
@@ -68,41 +107,122 @@
 }
 
 .chartCard {
-  background: var(--surface);
+  background: #ffffff;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 20px 24px;
-  min-width: 0;      /* prevent grid blowout */
+  padding: 22px 24px;
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
   overflow: hidden;
 }
 
-.chartTitle { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 16px; }
-
-.barList { display: flex; flex-direction: column; gap: 12px; }
-.barItem { display: flex; align-items: center; gap: 12px; }
-.barLabel { font-size: 12px; color: var(--text-secondary); width: 120px; flex-shrink: 0; text-transform: capitalize; }
-.barTrack { flex: 1; height: 8px; background: var(--bg-light); border-radius: 4px; overflow: hidden; }
-.barFill { height: 100%; background: var(--danger); border-radius: 4px; transition: width 0.5s ease; }
-.barValue { font-size: 12px; font-weight: 700; color: var(--text); width: 24px; text-align: right; }
-
-.speciesList { display: flex; flex-direction: column; gap: 8px; }
-.speciesItem { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); }
-.speciesItem:last-child { border-bottom: none; }
-.speciesRank { font-size: 13px; font-weight: 800; color: var(--secondary); width: 28px; }
-.speciesName { flex: 1; font-size: 14px; color: var(--text); font-weight: 500; }
-.speciesWeight { font-size: 13px; color: var(--text-secondary); font-weight: 600; }
-
-.empty { color: var(--text-muted); font-size: 13px; padding: 20px 0; text-align: center; }
-
-/* ── Responsive ── */
-@media (max-width: 1100px) {
-  .statsGrid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+.chartHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
 }
-@media (max-width: 900px) {
-  .chartsRow, .bottomRow { grid-template-columns: 1fr; }
+
+.chartTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.2px;
 }
-@media (max-width: 640px) {
-  .statsGrid { grid-template-columns: repeat(2, 1fr); }
+
+.chartBadge {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary);
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+.barList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 10px;
+}
+.barItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.barLabel {
+  font-size: 13px;
+  color: var(--text-secondary);
+  width: 120px;
+  flex-shrink: 0;
+  text-transform: capitalize;
+  font-weight: 600;
+}
+.barTrack {
+  flex: 1;
+  height: 8px;
+  background: #f1f5f9;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.barFill {
+  height: 100%;
+  background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+.barValue {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  width: 28px;
+  text-align: right;
+}
+
+.speciesList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+.speciesItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+.speciesItem:last-child {
+  border-bottom: none;
+}
+.speciesRank {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0284c7;
+  width: 28px;
+}
+.speciesName {
+  flex: 1;
+  font-size: 14px;
+  color: var(--text);
+  font-weight: 600;
+}
+.speciesWeight {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 700;
+  background: #f8fafc;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 24px 0;
+  text-align: center;
 }
 
 /* ── Weather Widget ── */
@@ -110,13 +230,13 @@
   display: flex;
   align-items: center;
   justify-content: space-around;
-  background: linear-gradient(135deg, var(--surface) 0%, rgba(15, 32, 68, 0.6) 100%);
-  border: 1px solid var(--border);
+  background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
+  border: 1px solid #bfdbfe;
   border-radius: var(--radius-lg);
   padding: 16px 24px;
   margin-bottom: 24px;
   gap: 16px;
-  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 8px rgba(0, 102, 204, 0.05);
 }
 
 .weatherItem {
@@ -126,14 +246,14 @@
 }
 
 .weatherIcon {
-  font-size: 24px;
+  font-size: 26px;
 }
 
 .weatherLabel {
   font-size: 11px;
   text-transform: uppercase;
-  color: var(--text-muted);
-  font-weight: 600;
+  color: #0284c7;
+  font-weight: 700;
   letter-spacing: 0.5px;
 }
 
@@ -147,9 +267,15 @@
 .weatherDivider {
   width: 1px;
   height: 32px;
-  background: var(--border);
+  background: #bfdbfe;
 }
 
+@media (max-width: 1100px) {
+  .statsGrid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+}
+@media (max-width: 900px) {
+  .chartsRow, .bottomRow { grid-template-columns: 1fr; }
+}
 @media (max-width: 768px) {
   .weatherStrip {
     flex-wrap: wrap;
@@ -160,4 +286,6 @@
     display: none;
   }
 }
-
+@media (max-width: 640px) {
+  .statsGrid { grid-template-columns: repeat(2, 1fr); }
+}

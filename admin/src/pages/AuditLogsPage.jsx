@@ -12,11 +12,11 @@ const timeAgo = (d) => {
 };
 
 const METHOD_COLOR = {
-  GET:    '#3B82F6',
-  POST:   '#10B981',
-  PUT:    '#F59E0B',
-  PATCH:  '#8B5CF6',
-  DELETE: '#EF4444',
+  GET:    { color: '#0284c7', bg: '#eff6ff', border: '#bfdbfe' },
+  POST:   { color: '#059669', bg: '#ecfdf5', border: '#a7f3d0' },
+  PUT:    { color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
+  PATCH:  { color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
+  DELETE: { color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
 };
 
 export default function AuditLogsPage() {
@@ -25,19 +25,22 @@ export default function AuditLogsPage() {
   const [page, setPage]       = useState(1);
   const [total, setTotal]     = useState(0);
   const [search, setSearch]   = useState('');
+  const [error, setError]     = useState('');
   const LIMIT = 30;
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
       const params = { page, limit: LIMIT };
       if (search) params.search = search;
       const res = await api.get('/admin/audit-logs', { params });
       const data = res.data;
-      setRecords(data.data || []);
-      setTotal(data.pagination?.total || 0);
+      setRecords(data?.data || []);
+      setTotal(data?.pagination?.total || 0);
     } catch (e) {
       console.error(e);
+      setError(e.response?.data?.message || 'Unable to retrieve audit logs.');
     } finally {
       setLoading(false);
     }
@@ -49,28 +52,38 @@ export default function AuditLogsPage() {
     <div className={styles.page}>
       <div className={styles.pageHeader}>
         <div>
-          <h1 className={styles.pageTitle}>🔍 Audit Logs</h1>
-          <p className={styles.pageSubtitle}>{total.toLocaleString()} total log entries</p>
+          <h1 className={styles.pageTitle}>🔍 System Audit & Security Logs</h1>
+          <p className={styles.pageSubtitle}>{total.toLocaleString()} total immutable system activity events</p>
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
           <input
             className="form-input"
-            placeholder="Search logs…"
+            placeholder="🔍 Search actions, paths, IPs…"
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1); }}
-            style={{ width: 240 }}
+            style={{ width: 260 }}
           />
           <button className="btn btn-ghost btn-sm" onClick={load}>↻ Refresh</button>
         </div>
       </div>
 
+      {error && (
+        <div className="alert-banner alert-error">
+          <span>⚠️ {error}</span>
+          <button className="btn btn-sm btn-ghost" onClick={load} style={{ marginLeft: 'auto' }}>Retry</button>
+        </div>
+      )}
+
       {loading ? (
-        <div className="loading-wrap"><div className="spinner" /></div>
+        <div className="loading-wrap">
+          <div className="spinner" />
+          <span>Loading audit log entries...</span>
+        </div>
       ) : records.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon">🔍</div>
-          <h2 className="empty-title">No audit logs found</h2>
-          <p className="empty-desc">System activity will appear here as users interact with the platform.</p>
+          <h2 className="empty-title">No Audit Logs Found</h2>
+          <p className="empty-desc">System transactions and officer administrative actions will appear here in real-time.</p>
         </div>
       ) : (
         <div className={styles.tableCard}>
@@ -79,52 +92,81 @@ export default function AuditLogsPage() {
               <thead>
                 <tr>
                   <th>Method</th>
-                  <th>Action / Path</th>
-                  <th>User</th>
-                  <th>IP Address</th>
+                  <th>Action / Endpoint</th>
+                  <th>Actor / User</th>
+                  <th>Client IP</th>
                   <th>Status</th>
-                  <th>Time</th>
+                  <th>Timestamp</th>
                 </tr>
               </thead>
               <tbody>
                 {records.map((log, i) => {
-                  const mcolor = METHOD_COLOR[log.method] || '#64748B';
+                  const methodCfg = METHOD_COLOR[log.method] || { color: '#64748b', bg: '#f1f5f9', border: '#e2e8f0' };
+                  const isOk = (log.statusCode || 200) < 400;
+
                   return (
                     <tr key={log._id || i}>
                       <td>
-                        <span className="badge" style={{ background: mcolor + '22', color: mcolor, fontFamily: 'monospace' }}>
+                        <span
+                          className="badge"
+                          style={{
+                            background: methodCfg.bg,
+                            color: methodCfg.color,
+                            border: `1px solid ${methodCfg.border}`,
+                            fontFamily: 'monospace',
+                            fontWeight: 700,
+                          }}
+                        >
                           {log.method || 'GET'}
                         </span>
                       </td>
-                      <td style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--text-secondary)', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <td style={{
+                        fontFamily: 'monospace',
+                        fontSize: 13,
+                        color: 'var(--text-secondary)',
+                        maxWidth: 300,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        fontWeight: 600,
+                      }}>
                         {log.action || log.path || '—'}
                       </td>
                       <td>
-                        <div style={{ fontSize: 13, fontWeight: 600 }}>{log.userId?.name || 'System'}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{log.userId?.role || ''}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+                          {log.actorId?.name || log.userId?.name || 'System / Service'}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          {log.actorId?.email || log.userId?.role || ''}
+                        </div>
                       </td>
                       <td style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--text-muted)' }}>
-                        {log.ipAddress || '—'}
+                        {log.ipAddress || '127.0.0.1'}
                       </td>
                       <td>
-                        <span className="badge" style={{
-                          background: log.statusCode >= 400 ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.15)',
-                          color: log.statusCode >= 400 ? '#EF4444' : '#10B981',
-                        }}>
+                        <span
+                          className="badge"
+                          style={{
+                            background: isOk ? '#ecfdf5' : '#fef2f2',
+                            color: isOk ? '#059669' : '#dc2626',
+                            border: `1px solid ${isOk ? '#a7f3d0' : '#fecaca'}`,
+                          }}
+                        >
                           {log.statusCode || 200}
                         </span>
                       </td>
-                      <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{timeAgo(log.createdAt)}</td>
+                      <td style={{ color: 'var(--text-muted)', fontSize: 13 }}>{timeAgo(log.createdAt)}</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
+
           {total > LIMIT && (
             <div className="pagination">
               <span className="pagination-info">
-                Showing {(page - 1) * LIMIT + 1}–{Math.min(page * LIMIT, total)} of {total.toLocaleString()}
+                Showing {(page - 1) * LIMIT + 1}–{Math.min(page * LIMIT, total)} of {total.toLocaleString()} log entries
               </span>
               <div className="pagination-btns">
                 <button className="page-btn" disabled={page === 1} onClick={() => setPage(p => p - 1)}>← Prev</button>

@@ -9,7 +9,6 @@ import OfficersPage from './pages/OfficersPage';
 import SOSPage from './pages/SOSPage';
 import ComplaintsPage from './pages/ComplaintsPage';
 import SchemesPage from './pages/SchemesPage';
-import PricesPage from './pages/PricesPage';
 import NotificationsPage from './pages/NotificationsPage';
 import AuditLogsPage from './pages/AuditLogsPage';
 
@@ -19,7 +18,7 @@ function ProtectedRoute({ children }) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', flexDirection: 'column', gap: 16, background: 'var(--bg)' }}>
         <div className="spinner" />
-        <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>Loading KadalThunai Admin...</span>
+        <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>Loading Ocean Connect Admin...</span>
       </div>
     );
   }
@@ -39,7 +38,6 @@ function AppRoutes() {
         <Route path="sos"           element={<SOSPage />} />
         <Route path="complaints"    element={<ComplaintsPage />} />
         <Route path="schemes"       element={<SchemesPage />} />
-        <Route path="prices"        element={<PricesPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="audit-logs"    element={<AuditLogsPage />} />
         <Route path="*"             element={<Navigate to="/dashboard" replace />} />

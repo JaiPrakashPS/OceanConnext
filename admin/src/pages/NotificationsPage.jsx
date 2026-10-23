@@ -2,25 +2,29 @@ import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api/axios';
 import styles from './DataPage.module.css';
 
-const TYPES   = ['info', 'warning', 'alert', 'scheme', 'weather', 'general'];
-const ROLES   = ['all', 'fisherman', 'officer'];
+const TYPES    = ['info', 'warning', 'alert', 'scheme', 'weather', 'general'];
+const ROLES    = ['all', 'fisherman', 'officer'];
 const PRIORITY = ['low', 'medium', 'high', 'critical'];
 
 export default function NotificationsPage() {
-  const [records, setRecords]   = useState([]);
-  const [loading, setLoading]   = useState(true);
+  const [records, setRecords]     = useState([]);
+  const [loading, setLoading]     = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm]         = useState({ title: '', body: '', type: 'info', targetRole: 'all', priority: 'medium' });
-  const [sending, setSending]   = useState(false);
-  const [sent, setSent]         = useState('');
+  const [form, setForm]           = useState({ title: '', body: '', type: 'info', targetRole: 'all', priority: 'medium' });
+  const [sending, setSending]     = useState(false);
+  const [sent, setSent]           = useState('');
+  const [modalError, setModalError] = useState('');
+  const [error, setError]         = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
       const res = await api.get('/notifications', { params: { limit: 30 } });
-      setRecords(res.data.data || []);
+      setRecords(res.data?.data || []);
     } catch (e) {
       console.error(e);
+      setError(e.response?.data?.message || 'Unable to retrieve broadcast notifications history.');
     } finally {
       setLoading(false);
     }
@@ -30,28 +34,32 @@ export default function NotificationsPage() {
 
   const handleBroadcast = async (e) => {
     e.preventDefault();
-    if (!form.title || !form.body) return;
+    if (!form.title.trim() || !form.body.trim()) {
+      setModalError('Notification title and message body are required.');
+      return;
+    }
     setSending(true);
+    setModalError('');
     try {
       await api.post('/notifications/broadcast', form);
-      setSent(`Notification "${form.title}" broadcast successfully!`);
+      setSent(`Broadcast "${form.title}" dispatched successfully.`);
       setShowModal(false);
       setForm({ title: '', body: '', type: 'info', targetRole: 'all', priority: 'medium' });
       load();
-      setTimeout(() => setSent(''), 4000);
+      setTimeout(() => setSent(''), 4500);
     } catch (err) {
-      alert(err?.response?.data?.message || 'Failed to broadcast notification');
+      setModalError(err?.response?.data?.message || 'Failed to dispatch broadcast. Check network.');
     } finally {
       setSending(false);
     }
   };
 
   const typeColor = (type) => {
-    if (type === 'alert' || type === 'warning') return '#EF4444';
-    if (type === 'scheme') return '#10B981';
-    if (type === 'weather') return '#3B82F6';
-    if (type === 'info') return '#F59E0B';
-    return '#64748B';
+    if (type === 'alert' || type === 'warning') return '#dc2626';
+    if (type === 'scheme') return '#059669';
+    if (type === 'weather') return '#0284c7';
+    if (type === 'info') return '#d97706';
+    return '#64748b';
   };
 
   const priorityBadge = (p) => {
@@ -63,29 +71,40 @@ export default function NotificationsPage() {
     <div className={styles.page}>
       <div className={styles.pageHeader}>
         <div>
-          <h1 className={styles.pageTitle}>🔔 Broadcast Notifications</h1>
-          <p className={styles.pageSubtitle}>{records.length} recent notifications</p>
+          <h1 className={styles.pageTitle}>🔔 Broadcast Announcements & Alerts</h1>
+          <p className={styles.pageSubtitle}>{records.length} recent system notifications sent to mobile users</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>📢 Send Broadcast</button>
+        <button className="btn btn-primary" onClick={() => { setShowModal(true); setModalError(''); }}>
+          📢 Dispatch New Broadcast
+        </button>
       </div>
 
       {sent && (
-        <div style={{
-          background: 'rgba(16,185,129,0.15)', border: '1px solid #10B981', borderRadius: 10,
-          padding: '14px 18px', color: '#10B981', fontWeight: 600, fontSize: 14,
-        }}>
-          ✅ {sent}
+        <div className="alert-banner alert-success">
+          <span>✅ {sent}</span>
+        </div>
+      )}
+
+      {error && (
+        <div className="alert-banner alert-error">
+          <span>⚠️ {error}</span>
+          <button className="btn btn-sm btn-ghost" onClick={load} style={{ marginLeft: 'auto' }}>Retry</button>
         </div>
       )}
 
       {loading ? (
-        <div className="loading-wrap"><div className="spinner" /></div>
+        <div className="loading-wrap">
+          <div className="spinner" />
+          <span>Loading notifications log...</span>
+        </div>
       ) : records.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon">🔔</div>
-          <h2 className="empty-title">No notifications sent yet</h2>
-          <p className="empty-desc">Broadcast messages to fishermen and officers.</p>
-          <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={() => setShowModal(true)}>📢 Send First Broadcast</button>
+          <h2 className="empty-title">No Notifications Dispatched Yet</h2>
+          <p className="empty-desc">Send targeted advisory announcements or emergency weather alerts to mobile app users.</p>
+          <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={() => setShowModal(true)}>
+            📢 Send First Broadcast
+          </button>
         </div>
       ) : (
         <div className={styles.tableCard}>
@@ -94,33 +113,35 @@ export default function NotificationsPage() {
               <thead>
                 <tr>
                   <th>Title</th>
-                  <th>Message</th>
-                  <th>Type</th>
-                  <th>Target</th>
+                  <th>Message Body</th>
+                  <th>Category</th>
+                  <th>Recipients</th>
                   <th>Priority</th>
-                  <th>Sent</th>
+                  <th>Dispatch Time</th>
                 </tr>
               </thead>
               <tbody>
                 {records.map(n => (
                   <tr key={n._id}>
-                    <td style={{ fontWeight: 600 }}>{n.title}</td>
-                    <td style={{ maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>
+                    <td style={{ fontWeight: 700, color: 'var(--text)' }}>{n.title}</td>
+                    <td style={{ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>
                       {n.body}
                     </td>
                     <td>
-                      <span className="badge" style={{ background: typeColor(n.type) + '22', color: typeColor(n.type), textTransform: 'capitalize' }}>
+                      <span className="badge" style={{ background: typeColor(n.type) + '15', color: typeColor(n.type), textTransform: 'capitalize' }}>
                         {n.type}
                       </span>
                     </td>
-                    <td style={{ textTransform: 'capitalize' }}>{n.targetRole || 'all'}</td>
+                    <td style={{ textTransform: 'capitalize', fontWeight: 600 }}>
+                      {n.targetRole === 'all' ? 'All Registered Users' : n.targetRole}
+                    </td>
                     <td>
                       <span className={`badge ${priorityBadge(n.priority)}`} style={{ textTransform: 'capitalize' }}>
                         {n.priority || 'medium'}
                       </span>
                     </td>
                     <td style={{ color: 'var(--text-muted)', fontSize: 13 }}>
-                      {n.createdAt ? new Date(n.createdAt).toLocaleDateString() : '—'}
+                      {n.createdAt ? new Date(n.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
                     </td>
                   </tr>
                 ))}
@@ -133,18 +154,40 @@ export default function NotificationsPage() {
       {/* Broadcast Modal */}
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
-            <h2 className="modal-title">📢 Send Broadcast</h2>
-            <p className="modal-subtitle">This will be sent to all selected users via push notification</p>
+          <div className="modal" style={{ maxWidth: 540 }} onClick={e => e.stopPropagation()}>
+            <h2 className="modal-title">📢 Dispatch Push Broadcast</h2>
+            <p className="modal-subtitle">Messages are transmitted directly to the Ocean Connect mobile application</p>
+
+            {modalError && (
+              <div className="alert-banner alert-error" style={{ marginBottom: 16 }}>
+                <span>⚠️ {modalError}</span>
+              </div>
+            )}
+
             <form onSubmit={handleBroadcast} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div className="form-group">
-                <label className="form-label">Title *</label>
-                <input className="form-input" required value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Notification title" />
+                <label className="form-label">Broadcast Title *</label>
+                <input
+                  className="form-input"
+                  required
+                  value={form.title}
+                  onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                  placeholder="e.g. Cyclone Warning & Shore Return Advisory"
+                />
               </div>
+
               <div className="form-group">
-                <label className="form-label">Message *</label>
-                <textarea className="form-input" style={{ height: 80, paddingTop: 10, resize: 'vertical' }} required value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))} placeholder="Enter the broadcast message…" />
+                <label className="form-label">Message Content *</label>
+                <textarea
+                  className="form-input"
+                  style={{ height: 90, paddingTop: 10, resize: 'vertical' }}
+                  required
+                  value={form.body}
+                  onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
+                  placeholder="Provide precise details, coordinates, or emergency instructions…"
+                />
               </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                 <div className="form-group">
                   <label className="form-label">Type</label>
@@ -153,9 +196,11 @@ export default function NotificationsPage() {
                   </select>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Target Role</label>
+                  <label className="form-label">Target Audience</label>
                   <select className="form-select" value={form.targetRole} onChange={e => setForm(f => ({ ...f, targetRole: e.target.value }))}>
-                    {ROLES.map(r => <option key={r} value={r} style={{ textTransform: 'capitalize' }}>{r === 'all' ? 'Everyone' : r}</option>)}
+                    <option value="all">Everyone</option>
+                    <option value="fisherman">Fishermen Only</option>
+                    <option value="officer">Officers Only</option>
                   </select>
                 </div>
                 <div className="form-group">
@@ -165,15 +210,19 @@ export default function NotificationsPage() {
                   </select>
                 </div>
               </div>
+
               <div style={{
-                background: 'var(--bg-light)', borderRadius: 10, padding: '12px 16px',
-                border: '1px solid var(--border)', fontSize: 13, color: 'var(--text-secondary)',
+                background: '#f8fafc', borderRadius: 10, padding: '12px 16px',
+                border: '1px solid #e2e8f0', fontSize: 13, color: 'var(--text-secondary)',
               }}>
-                <strong style={{ color: 'var(--text)' }}>Preview:</strong> [{form.priority.toUpperCase()}] <strong>{form.title}</strong> — {form.body || '…'}
+                <strong style={{ color: 'var(--text)' }}>Preview:</strong> [{form.priority.toUpperCase()}] <strong>{form.title || 'Untitled'}</strong> — {form.body || '…'}
               </div>
-              <div className="modal-footer" style={{ marginTop: 4 }}>
+
+              <div className="modal-footer">
                 <button type="button" className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={sending}>{sending ? 'Sending…' : '📢 Broadcast'}</button>
+                <button type="submit" className="btn btn-primary" disabled={sending}>
+                  {sending ? 'Transmitting…' : '📢 Dispatch Broadcast'}
+                </button>
               </div>
             </form>
           </div>
